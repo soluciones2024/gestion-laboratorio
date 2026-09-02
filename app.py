@@ -31,6 +31,18 @@ CREATE TABLE IF NOT EXISTS compras (
     proveedor TEXT,
     fecha TEXT
 )""")
+
+# NUEVA TABLA: Préstamos de equipos
+CURSOR.execute("""
+CREATE TABLE IF NOT EXISTS prestamos (
+    id_prestamo INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_equipo TEXT,
+    usuario TEXT,
+    fecha_prestamo TEXT,
+    fecha_devolucion TEXT,
+    estado_prestamo TEXT,
+    FOREIGN KEY(id_equipo) REFERENCES equipos(id_equipo)
+)""")
 CONN.commit()
 
 # Función para convertir DataFrame a Excel en memoria
@@ -43,14 +55,14 @@ def to_excel(df):
 # --- INTERFAZ DE USUARIO ---
 st.title("🖥️ Sistema de Gestión de Laboratorio de Computación")
 
-menu = ["Inventario de Equipos", "Gestión de Estados / Bajas", "Registro de Compras", "Panel de Control"]
+menu = ["Inventario de Equipos", "Gestión de Estados / Bajas", "Préstamo de Equipos", "Registro de Compras", "Panel de Control"]
 choice = st.sidebar.selectbox("Navegación", menu)
 
 # --- MÓDULO 1: INVENTARIO ---
 if choice == "Inventario de Equipos":
     st.header("📋 Inventario de Hardware")
     
-    with st.form("nuevo_equipo", clear_on_submit=True):
+    with St.form("nuevo_equipo", clear_on_submit=True):
         st.subheader("Añadir Nuevo Equipo")
         col1, col2, col3 = st.columns(3)
         id_eq = col1.text_input("ID / Código del Equipo (ej: PC-01)")
@@ -68,6 +80,7 @@ if choice == "Inventario de Equipos":
                     CURSOR.execute("INSERT INTO equipos VALUES (?, ?, ?, ?, ?, ?)", (id_eq, tipo_eq, marca_eq, mod_eq, est_eq, ub_eq))
                     CONN.commit()
                     st.success(f"Equipo {id_eq} registrado con éxito.")
+                    st.rerun()
                 except sqlite3.IntegrityError:
                     st.error("El ID de este equipo ya existe.")
             else:
@@ -77,7 +90,6 @@ if choice == "Inventario de Equipos":
     df_equipos = pd.read_sql_query("SELECT * FROM equipos", CONN)
     st.dataframe(df_equipos, use_container_width=True)
     
-    # Botón para exportar Inventario
     if not df_equipos.empty:
         excel_data = to_excel(df_equipos)
         st.download_button(
@@ -103,10 +115,6 @@ elif choice == "Gestión de Estados / Bajas":
             nuevo_estado = st.selectbox("Nuevo Estado", ["Operativo", "En Mantenimiento", "De Baja"])
             nueva_ub = st.text_input("Actualizar Ubicación (Opcional, dejar vacío para mantener)")
             
-            # Buscar datos actuales del equipo seleccionado
-            info_actual = df_equipos[df_equipos["id_equipo"] == id_selec].iloc[0]
-            st.write(f"**Equipo seleccionado:** {info_actual['tipo']} {info_actual['marca']} (Estado actual: {info_actual['estado']})")
-            
             if st.form_submit_button("Actualizar Equipo"):
                 if nueva_ub.strip() != "":
                     CURSOR.execute("UPDATE equipos SET estado = ?, ubicacion = ? WHERE id_equipo = ?", (nuevo_estado, nueva_ub, id_selec))
@@ -116,7 +124,84 @@ elif choice == "Gestión de Estados / Bajas":
                 st.success(f"Equipo {id_selec} actualizado a estado: '{nuevo_estado}'")
                 st.rerun()
 
-# --- MÓDULO 3: COMPRAS ---
+# --- NUEVO MÓDULO 3: PRÉSTAMO DE EQUIPOS ---
+elif choice == "Préstamo de Equipos":
+    st.header("🤝 Módulo de Préstamos y Devoluciones")
+    
+    tab1, tab2 = st.tabs(["🆕 Registrar Préstamo", "🔙 Procesar Devolución"])
+    
+    with tab1:
+        # Solo permitir prestar equipos que estén 'Operativos'
+        df_operativos = pd.read_sql_query("SELECT id_equipo, tipo, marca FROM equipos WHERE estado = 'Operativo'", CONN)
+        
+        # Filtrar también para no prestar equipos que ya estén prestados actualmente
+        df_activos = pd.read_sql_query("SELECT id_equipo FROM prestamos WHERE estado_prestamo = 'Activo'", CONN)
+        prestados_ids = df_activos["id_equipo"].tolist()
+        df_disponibles = df_operativos[~df_operativos["id_equipo"].isin(prestados_ids)]
+        
+        if df_disponibles.empty:
+            st.warning("No hay equipos operativos disponibles para préstamo en este momento.")
+        else:
+            with st.form("form_prestamo", clear_on_submit=True):
+                lista_disp = [f"{row['id_equipo']} - {row['tipo']} ({row['marca']})" for _, row in df_disponibles.iterrows()]
+                equipo_selec = st.selectbox("Selecciona el Equipo a Prestar", lista_disp)
+                usuario_p = st.text_input("Nombre Completo del Usuario / Alumno / Profesor")
+                fecha_p = st.date_input("Fecha de Entrega", datetime.now())
+                
+                if st.form_submit_button("Confirmar Préstamo"):
+                    if usuario_p.strip() != "":
+                        id_real = equipo_selec.split(" - ")[0]
+                        CURSOR.execute(
+                            "INSERT INTO prestamos (id_equipo, usuario, fecha_prestamo, fecha_devolucion, estado_prestamo) VALUES (?, ?, ?, ?, ?)",
+                            (id_real, usuario_p, str(fecha_p), "Pendiente", "Activo")
+                        )
+                        CONN.commit()
+                        st.success(f"Equipo {id_real} prestado exitosamente a {usuario_p}.")
+                        st.rerun()
+                    else:
+                        st.warning("Por favor, ingresa el nombre del usuario.")
+                        
+    with tab2:
+        df_prestados = pd.read_sql_query(
+            "SELECT id_prestamo, id_equipo, usuario, fecha_prestamo FROM prestamos WHERE estado_prestamo = 'Activo'", CONN
+        )
+        
+        if df_prestados.empty:
+            st.info("No hay préstamos activos registrados en el sistema.")
+        else:
+            st.subheader("Préstamos en Curso")
+            st.dataframe(df_prestados, use_container_width=True)
+            
+            with st.form("form_devolucion"):
+                lista_prestamos = [f"ID:{row['id_prestamo']} | {row['id_equipo']} prestado a {row['usuario']}" for _, row in df_prestados.iterrows()]
+                prestamo_selec = st.selectbox("Selecciona el préstamo a finalizar", lista_prestamos)
+                fecha_d = st.date_input("Fecha de Devolución", datetime.now())
+                
+                if st.form_submit_button("Registrar Devolución"):
+                    id_prestamo_real = int(prestamo_selec.split(" | ")[0].split(":")[1])
+                    CURSOR.execute(
+                        "UPDATE prestamos SET fecha_devolucion = ?, estado_prestamo = 'Devuelto' WHERE id_prestamo = ?",
+                        (str(fecha_d), id_prestamo_real)
+                    )
+                    CONN.commit()
+                    st.success("La devolución ha sido registrada y el equipo vuelve a estar disponible.")
+                    st.rerun()
+                    
+    st.markdown("---")
+    st.subheader("📜 Historial Completo de Préstamos")
+    df_todos_prestamos = pd.read_sql_query("SELECT * FROM prestamos", CONN)
+    st.dataframe(df_todos_prestamos, use_container_width=True)
+    
+    if not df_todos_prestamos.empty:
+        excel_prestamos = to_excel(df_todos_prestamos)
+        st.download_button(
+            label="📥 Exportar Historial de Préstamos a Excel",
+            data=excel_prestamos,
+            file_name=f"historial_prestamos_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+# --- MÓDULO 4: COMPRAS ---
 elif choice == "Registro de Compras":
     st.header("💰 Historial de Compras y Adquisiciones")
     
@@ -137,53 +222,5 @@ elif choice == "Registro de Compras":
                                (item_c, cant_c, costo_c, prov_c, str(fecha_c)))
                 CONN.commit()
                 st.success(f"Compra de '{item_c}' registrada.")
+                st.rerun()
             else:
-                st.warning("El nombre del artículo es obligatorio.")
-
-    st.subheader("Historial de Transacciones")
-    df_compras = pd.read_sql_query("SELECT * FROM compras", CONN)
-    if not df_compras.empty:
-        df_compras["Costo Total"] = df_compras["cantidad"] * df_compras["costo_unitario"]
-    st.dataframe(df_compras, use_container_width=True)
-    
-    # Botón para exportar Compras
-    if not df_compras.empty:
-        excel_compras = to_excel(df_compras)
-        st.download_button(
-            label="📥 Exportar Historial de Compras a Excel",
-            data=excel_compras,
-            file_name=f"compras_{datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-# --- MÓDULO 4: PANEL DE CONTROL ---
-elif choice == "Panel de Control":
-    st.header("📊 Resumen del Laboratorio")
-    
-    df_eq = pd.read_sql_query("SELECT * FROM equipos", CONN)
-    df_co = pd.read_sql_query("SELECT * FROM compras", CONN)
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    total_equipos = len(df_eq)
-    col1.metric("Total Equipos", total_equipos)
-    
-    if total_equipos > 0:
-        operativos = len(df_eq[df_eq["estado"] == "Operativo"])
-        en_mant = len(df_eq[df_eq["estado"] == "En Mantenimiento"])
-        de_baja = len(df_eq[df_eq["estado"] == "De Baja"])
-        
-        col2.metric("Equipos Operativos", operativos)
-        col3.metric("En Mantenimiento", en_mant)
-        col4.metric("Dados de Baja", de_baja)
-    else:
-        col2.metric("Equipos Operativos", 0)
-        col3.metric("En Mantenimiento", 0)
-        col4.metric("Dados de Baja", 0)
-        
-    st.markdown("---")
-    if not df_co.empty:
-        gasto_total = (df_co["cantidad"] * df_co["costo_unitario"]).sum()
-        st.metric("Inversión Total Acumulada", f"${gasto_total:,.2f}")
-    else:
-        st.metric("Inversión Total Acumulada", "$0.00")
