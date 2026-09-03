@@ -90,7 +90,7 @@ if choice == "Inventario de Equipos":
         st.download_button("📥 Exportar Inventario a Excel", to_excel(df_equipos), "inventario.xlsx")
 
     elif choice == "Gestión de Estados / Bajas":
-    st.header("🔄 Actualizar Estado o Dar de Baja Equipos")
+        st.header("🔄 Actualizar Estado o Dar de Baja Equipos")
     df_equipos = pd.read_sql_query("SELECT id_equipo, tipo, marca, estado FROM equipos", CONN)
     if df_equipos.empty:
         st.info("No hay equipos registrados para modificar.")
