@@ -146,9 +146,9 @@ elif choice == "Préstamo de Equipos":
                         st.warning("Nombre y RUT son obligatorios.")
 with tab2:
     df_prestados = pd.read_sql_query("SELECT id_prestamo, id_equipo, usuario, rut, fecha_prestamo, fecha_limite, observaciones FROM prestamos WHERE estado_prestamo = 'Activo'", CONN)
-        if df_prestados.empty:
+    if df_prestados.empty:
             st.info("No hay préstamos activos.")
-        else:
+    else:
             st.write("Selecciona para devolver")
             st.dataframe(df_prestados, use_container_width=True)
             with st.form("form_devolucion"):
@@ -180,8 +180,8 @@ elif choice == "Registro de Compras":
         costo_c = st.number_input("Costo Unitario ($)", min_value=0.0)
         prov_c = st.text_input("Proveedor")
         fecha_c = st.date_input("Fecha", date.today())
-        if st.form_submit_button("Registrar Compra"):
-            if item_c:
+    if st.form_submit_button("Registrar Compra"):
+        if item_c:
                 CURSOR.execute("INSERT INTO compras (item, cantidad, costo_unitario, proveedor, fecha) VALUES (?, ?, ?, ?, ?)", (item_c, cant_c, costo_c, prov_c, str(fecha_c)))
                 CONN.commit()
                 st.success("Compra registrada.")
