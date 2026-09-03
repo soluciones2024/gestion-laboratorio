@@ -26,8 +26,6 @@ CONN = sqlite3.connect("laboratorio.db", check_same_thread=False)
 CURSOR = CONN.cursor()
 
 # Creación de tablas del sistema
-CURSOR.execute("CREATE INDEX IF NOT EXISTS idx_prestamos_rut ON prestamos (rut)")
-CURSOR.execute("CREATE INDEX IF NOT EXISTS idx_equipos_estado ON equipos (estado)")
 CONN.commit()
 
 CURSOR.execute("CREATE TABLE IF NOT EXISTS equipos (id_equipo TEXT PRIMARY KEY, tipo TEXT, marca TEXT, modelo TEXT, estado TEXT, ubicacion TEXT, fecha_cambio TEXT)")
