@@ -108,7 +108,7 @@ if choice == "Inventario de Equipos":
                 CONN.commit()
                 st.success(f"Equipo {id_selec} actualizado.")
                 st.rerun()
-            else 
+            elif 
                 choice == "Préstamo de Equipos":
                 st.header("🤝 Módulo de Préstamos y Devoluciones")
                 tab1, tab2 = st.tabs(["🆕 Registrar Préstamo", "🔙 Procesar Devolución"])
