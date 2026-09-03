@@ -89,7 +89,7 @@ if choice == "Inventario de Equipos":
     if not df_equipos.empty:
         st.download_button("📥 Exportar Inventario a Excel", to_excel(df_equipos), "inventario.xlsx")
 
-elif choice == "Gestión de Estados / Bajas":
+    elif choice == "Gestión de Estados / Bajas":
     st.header("🔄 Actualizar Estado o Dar de Baja Equipos")
     df_equipos = pd.read_sql_query("SELECT id_equipo, tipo, marca, estado FROM equipos", CONN)
     if df_equipos.empty:
@@ -109,7 +109,7 @@ elif choice == "Gestión de Estados / Bajas":
                 st.success(f"Equipo {id_selec} actualizado.")
                 st.rerun()
 
-elif choice == "Préstamo de Equipos":
+    elif choice == "Préstamo de Equipos":
     st.header("🤝 Módulo de Préstamos y Devoluciones")
     tab1, tab2 = st.tabs(["🆕 Registrar Préstamo", "🔙 Procesar Devolución"])
     with tab1:
@@ -144,7 +144,7 @@ elif choice == "Préstamo de Equipos":
                             st.rerun()
                     else:
                         st.warning("Nombre y RUT son obligatorios.")
-with tab2:
+    with tab2:
     df_prestados = pd.read_sql_query("SELECT id_prestamo, id_equipo, usuario, rut, fecha_prestamo, fecha_limite, observaciones FROM prestamos WHERE estado_prestamo = 'Activo'", CONN)
     if df_prestados.empty:
             st.info("No hay préstamos activos.")
@@ -172,7 +172,7 @@ with tab2:
     if not df_todos_prestamos.empty:
         st.download_button("📥 Exportar Préstamos a Excel", to_excel(df_todos_prestamos), "prestamos.xlsx")
 
-elif choice == "Registro de Compras":
+    elif choice == "Registro de Compras":
     st.header("💰 Historial de Compras")
     with st.form("nueva_compra", clear_on_submit=True):
         item_c = st.text_input("Artículo / Insumo")
@@ -193,7 +193,7 @@ elif choice == "Registro de Compras":
     if not df_compras.empty:
         st.download_button("📥 Exportar Compras a Excel", to_excel(df_compras), "compras.xlsx")
 
-elif choice == "Panel de Control":
+    elif choice == "Panel de Control":
     st.header("📊 Resumen del Laboratorio")
     df_eq = pd.read_sql_query("SELECT * FROM equipos", CONN)
     df_co = pd.read_sql_query("SELECT * FROM compras", CONN)
