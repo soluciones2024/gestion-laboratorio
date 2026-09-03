@@ -110,15 +110,15 @@ if choice == "Inventario de Equipos":
                 st.rerun()
 
     elif choice == "Préstamo de Equipos":
-    st.header("🤝 Módulo de Préstamos y Devoluciones")
-    tab1, tab2 = st.tabs(["🆕 Registrar Préstamo", "🔙 Procesar Devolución"])
+                st.header("🤝 Módulo de Préstamos y Devoluciones")
+                tab1, tab2 = st.tabs(["🆕 Registrar Préstamo", "🔙 Procesar Devolución"])
     with tab1:
-        df_operativos = pd.read_sql_query("SELECT id_equipo, tipo, marca FROM equipos WHERE estado = 'Operativo'", CONN)
-        df_activos = pd.read_sql_query("SELECT id_equipo FROM prestamos WHERE estado_prestamo = 'Activo'", CONN)
-        prestados_ids = df_activos["id_equipo"].tolist()
-        df_disponibles = df_operativos[~df_operativos["id_equipo"].isin(prestados_ids)]
-        if df_disponibles.empty:
-            st.warning("No hay equipos operativos disponibles.")
+                df_operativos = pd.read_sql_query("SELECT id_equipo, tipo, marca FROM equipos WHERE estado = 'Operativo'", CONN)
+                df_activos = pd.read_sql_query("SELECT id_equipo FROM prestamos WHERE estado_prestamo = 'Activo'", CONN)
+                prestados_ids = df_activos["id_equipo"].tolist()
+                df_disponibles = df_operativos[~df_operativos["id_equipo"].isin(prestados_ids)]
+    if df_disponibles.empty:
+                st.warning("No hay equipos operativos disponibles.")
         else:
             with st.form("form_prestamo", clear_on_submit=True):
                 lista_disp = [f"{row['id_equipo']} - {row['tipo']} ({row['marca']})" for _, row in df_disponibles.iterrows()]
