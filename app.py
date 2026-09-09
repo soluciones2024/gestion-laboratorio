@@ -1,4 +1,12 @@
 import streamlit as st
+# Este comando funciona de forma transparente en local y en la web
+try:
+    BREVO_API_KEY = st.secrets["BREVO_API_KEY"]
+except KeyError:
+    st.error("Falta configurar la API Key de Brevo en los secretos de Streamlit.")
+
+# Tu código actual para la gestión del laboratorio y envíos de correo...
+
 import pandas as pd
 import sqlite3
 from datetime import datetime, date
