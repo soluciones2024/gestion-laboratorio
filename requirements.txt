@@ -1,0 +1,8 @@
+streamlit
+pandas
+plotly
+openpyxl
+segno
+requests
+xlsxwriter
+qrcode
