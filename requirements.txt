@@ -4,3 +4,4 @@ plotly
 segno
 requests
 xlsxwriter
+openpyxl
