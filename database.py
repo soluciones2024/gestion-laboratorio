@@ -7,7 +7,7 @@ def inicializar_db():
         cursor.execute("CREATE TABLE IF NOT EXISTS infraestructura (id_item INTEGER PRIMARY KEY AUTOINCREMENT, elemento TEXT, ubicacion TEXT, estado TEXT, observaciones TEXT)")
         cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (rut TEXT PRIMARY KEY, nombre TEXT, correo TEXT, tipo_usuario TEXT)")
         
-        # 1. AGREGADA LA COLUMNA estado_nota AQUÍ:
+        # 1. CORREGIDO: Se añade 'estado_nota TEXT' para la base de datos de Streamlit Cloud
         cursor.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota INTEGER PRIMARY KEY AUTOINCREMENT, nota TEXT, fecha TEXT, hora TEXT, estado_nota TEXT)")
         
         cursor.execute("CREATE TABLE IF NOT EXISTS salas (id_sala INTEGER PRIMARY KEY AUTOINCREMENT, nombre_sala TEXT UNIQUE, encargado TEXT, capacidad INTEGER)")
@@ -18,8 +18,8 @@ def inicializar_db():
                 cursor.execute(f"ALTER TABLE equipos ADD COLUMN {col} {tipo}")
             except sqlite3.OperationalError:
                 pass
-                
-        # 2. AGREGAR ESTA VERIFICACIÓN POR SI LA TABLA YA EXISTÍA EN LOCAL SIN ESA COLUMNA:
+        
+        # 2. CORREGIDO: Fuerza la actualización en tu entorno local por si ya tenías el archivo .db creado
         try:
             cursor.execute("ALTER TABLE bitacora ADD COLUMN estado_nota TEXT")
         except sqlite3.OperationalError:
