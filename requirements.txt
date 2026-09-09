@@ -5,3 +5,4 @@ segno
 requests
 xlsxwriter
 openpyxl
+qrcode
