@@ -1,17 +1,3 @@
-import sqlite3
-import streamlit as pd
-import io
-import openpyxl
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-
-DB_NAME = "laboratorio.db"
-
-def obtener_conexion():
-    """Retorna una conexión limpia a la base de datos."""
-    return sqlite3.connect(DB_NAME, check_same_thread=False)
-
 def inicializar_db():
     with obtener_conexion() as conn:
         cursor = conn.cursor()
@@ -20,7 +6,10 @@ def inicializar_db():
         cursor.execute("CREATE TABLE IF NOT EXISTS prestamos (id_prestamo INTEGER PRIMARY KEY AUTOINCREMENT, id_equipo TEXT, usuario TEXT, rut TEXT, fecha_prestamo TEXT, fecha_limite TEXT, fecha_devolucion TEXT, estado_prestamo TEXT, observaciones TEXT)")
         cursor.execute("CREATE TABLE IF NOT EXISTS infraestructura (id_item INTEGER PRIMARY KEY AUTOINCREMENT, elemento TEXT, ubicacion TEXT, estado TEXT, observaciones TEXT)")
         cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (rut TEXT PRIMARY KEY, nombre TEXT, correo TEXT, tipo_usuario TEXT)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota INTEGER PRIMARY KEY AUTOINCREMENT, nota TEXT, fecha TEXT, hora TEXT)")
+        
+        # 1. AGREGADA LA COLUMNA estado_nota AQUÍ:
+        cursor.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota INTEGER PRIMARY KEY AUTOINCREMENT, nota TEXT, fecha TEXT, hora TEXT, estado_nota TEXT)")
+        
         cursor.execute("CREATE TABLE IF NOT EXISTS salas (id_sala INTEGER PRIMARY KEY AUTOINCREMENT, nombre_sala TEXT UNIQUE, encargado TEXT, capacidad INTEGER)")
         
         columnas_nuevas = [("num_documento", "TEXT"), ("proveedor_origen", "TEXT"), ("costo_compra", "REAL")]
@@ -29,11 +18,11 @@ def inicializar_db():
                 cursor.execute(f"ALTER TABLE equipos ADD COLUMN {col} {tipo}")
             except sqlite3.OperationalError:
                 pass
+                
+        # 2. AGREGAR ESTA VERIFICACIÓN POR SI LA TABLA YA EXISTÍA EN LOCAL SIN ESA COLUMNA:
+        try:
+            cursor.execute("ALTER TABLE bitacora ADD COLUMN estado_nota TEXT")
+        except sqlite3.OperationalError:
+            pass
+            
         conn.commit()
-
-def to_excel(df):
-    output = io.BytesIO()
-    import pandas as pd
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Datos')
-    return output.getvalue()
