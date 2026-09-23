@@ -6,19 +6,16 @@ from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
 def obtener_servicio_drive():
     """Conecta con Google Drive leyendo los secretos de forma segura"""
-    # Cambiamos la validación estricta para evitar que el letrero bloquee el flujo
     if not hasattr(st, "secrets") or "google_drive" not in st.secrets:
         return None
         
     try:
-        # Forzar la conversión limpia a diccionario de Python
         cred_dict = {}
         for key, value in st.secrets["google_drive"].items():
             cred_dict[key] = value
             
         folder_id = cred_dict.pop("folder_id", None)
         
-        # Reparar saltos de línea de la clave privada de Google
         if "private_key" in cred_dict:
             cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
             
@@ -31,8 +28,9 @@ def obtener_servicio_drive():
         return None
 
 def buscar_archivo_en_drive(service, folder_id):
-    """Busca si el archivo database.db ya existe en la carpeta"""
+    """Busca si el archivo database.db ya existe estrictamente dentro de la carpeta asignada"""
     try:
+        # Consulta corregida para Google API v3: evita rutas rotas o consultas globales
         query = f"name = 'database.db' and '{folder_id}' in parents and trashed = false"
         results = service.files().list(q=query, fields="files(id, name)").execute()
         files = results.get("files", [])
@@ -72,7 +70,6 @@ def respaldar_base_datos():
     ruta_local = "database.db"
     res = obtener_servicio_drive()
     
-    # Imprimir el estado real en la pantalla web sin que detenga la aplicación
     if not res:
         st.info("💡 Nota: El sistema está operando en modo local o procesando la sincronización de credenciales con Google Drive.")
         return
@@ -83,10 +80,11 @@ def respaldar_base_datos():
     try:
         media = MediaFileUpload(ruta_local, mimetype="application/octet-stream", resumable=True)
         if file_id:
+            # Sincronización limpia apuntando al ID del archivo sin usar la raíz "/"
             service.files().update(fileId=file_id, media_body=media).execute()
         else:
             file_metadata = {"name": "database.db", "parents": [folder_id]}
             service.files().create(body=file_metadata, media_body=media, fields="id").execute()
         st.success("☁️ ¡Copia de seguridad sincronizada en Google Drive con éxito!")
     except Exception as e:
-        st.error(f"❌ Error de permisos al subir a Google Drive: {e}")
+        st.error(f"❌ Error al subir a Google Drive: {e}")
