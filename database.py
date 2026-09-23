@@ -10,8 +10,7 @@ DB_NAME = "laboratorio.db"
 
 def obtener_conexion():
     """Retorna una conexión limpia a la base de datos."""
-    return sqlite3.connect(DB_NAME, check_same_thread=False)
-
+    return sqlite3.connect("laboratorio.db", check_same_thread=False)
 def inicializar_db():
     with obtener_conexion() as conn:
         cursor = conn.cursor()
