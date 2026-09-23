@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "gestionescuelacubillos",
+  "private_key_id": "162c526929cca3d0e03d0d7b85c9fd16ed4a3770",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDWBxZ101Dg3Qto\nCyGEL3hPpkeDk+y7Qhz/woYz3U31lPojJioRsd/CY6CEmED8ToV4ObFDXVYifPEY\nnub7VedjeoqaNS9+oJYMcigFkCDhwPr3dKiN0AxfwR6XvUy65rerg5iVVkQjp9AO\ngBM1AIfq0/aAf0b1wyGg6CFgR7AI9a3BJ3k0l8AUijbee2m/oaUMygo8mEq05YUr\nF9tNSEatYO6ygXzuTTcJn3x1bAISLTCbY3v3F+nZm4IUGDH/Agr6PU90H61v2o9i\ntX1Olo8KGWkZ6YLS9MOkXhP3iVd7eP5A+PEOXSKpNumt4HcQshWCb6oAvmL+mQl6\nPz1UxCeVAgMBAAECggEACNXjEfsmyBmn+mQXPp89DsC1DBQDvllE3DQaGTMGIGDF\nkMTnELLwo1Q8kKy+ZgwRy3xKOpc0Upko1NTegTqzIjKxXRtb+hTEDQB7cXtZOCig\n061ftfcEQ8Gzsxzv+XlD1NNKbcPRbU1ks+yKnnIGqmWUtApNEiE7lqpukkxzUnNK\no9FU9hlzuUP9Z5jz6IsnQDUnLakeHXoAjkTC6n6YFGn7ichSHZUQF+LKZfrkgg7W\nza9uwdU/UFlR070UEmw+uIbpVk02qVTitWyrrTfwPNHfOrESST2by38hkjMbgI2n\njKdgn/fqASXw3C35iw+tYRwy0LDkp+7EakHgpCCZswKBgQDvGHt4YcXnGRbrTKfO\nKG6TdjZ0iBXlbeQ/ByoDuoHLEjqValNquaveG8BX81hUzyg9spn0NejS0jaq1yLf\n/t4rZIaaZdQWOwIecFDpVdX4p6OKJrzJtG6/P5WxM4ozYb32RsKxjCjrG5IdmXJ4\nl+9XIJvxyR8o2vJL3P8AvAy48wKBgQDlKOMwVI4FMowqKOd6VND3D1LHipBTht0g\nE5/C6+iKLVXCSZC5aXW1wh6zpUvJ79xqmptoUKFtRI3v+e1v8sS3oOn1PJuk+DxP\nnExYXsqTAEeYl6WOvw9Pd2ILrphcw4/36OcqO7Tz8J+jtkvcl/cTRzsZ7M2zdhMM\nz4POdLy/VwKBgDTYT2njCk+yrusgzTH2o8H57b1B2r0T1c/McI/UaB2PEN23W2qK\nUR9NOOz3fv13r+g7EmX0iFoYVjbaR/4EIeyrUkjL2t1y+1vo7Sk1bI6B1taRC0b1\nl0iz8AzzXEdRAiBtsVh2pxCXzmq2YKOgySiTr4P4NOfdxJHZ7Y6nAZTbAoGBANko\nwwq0xhUEzrDRLHLP12qYudBgbd7Jidjw38/esPHofkFsZ1pdJvAEMgX5mXWW+SCI\nvMbAygj7EyqbhDc3LtX5Blygf7p4hubGbc68nWlqtW5UHs7EHeUnc+EwJjCaHl9G\n9XEfPZ6BozaH9SHpXHmHYelyb4gmV20nZXeLRqZnAoGBAOfoZoFy7syo1Gg9l4x4\nsrV9e9DZ1EM2WLNchJ/sCpazxLr1H5J5ah3OraY7XgGwMdN3pMvKZP91vOYZ9QpC\naCxCBsyFUZhsFv9KQS0O1zCyAlJ5MEkoEmCXFFtgY+4GNTR0V1635/5ldPWsZfCR\n8dEHjpK8p04yXb8c7GJyjRSh\n-----END PRIVATE KEY-----\n",
+  "client_email": "laboratorio@://gserviceaccount.com",
+  "client_id": "116301300604355764214",
+  "auth_uri": "https://google.com",
+  "token_uri": "https://googleapis.com",
+  "auth_provider_x509_cert_url": "https://googleapis.com",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/laboratorio%40://gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
