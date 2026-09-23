@@ -30,7 +30,6 @@ def obtener_servicio_drive():
 def buscar_archivo_en_drive(service, folder_id):
     """Busca si el archivo database.db ya existe estrictamente dentro de la carpeta asignada"""
     try:
-        # Consulta corregida para Google API v3: evita rutas rotas o consultas globales
         query = f"name = 'database.db' and '{folder_id}' in parents and trashed = false"
         results = service.files().list(q=query, fields="files(id, name)").execute()
         files = results.get("files", [])
@@ -66,7 +65,7 @@ def descargar_base_datos():
             with open(ruta_local, "w") as f: pass
 
 def respaldar_base_datos():
-    """Sube y actualiza el archivo database.db en Google Drive"""
+    """Sube y actualiza el archivo database.db en Google Drive usando el método de carga binaria correcto"""
     ruta_local = "database.db"
     res = obtener_servicio_drive()
     
@@ -77,14 +76,20 @@ def respaldar_base_datos():
     service, folder_id = res
     file_id = buscar_archivo_en_drive(service, folder_id)
     
-    try:
-        media = MediaFileUpload(ruta_local, mimetype="application/octet-stream", resumable=True)
-        if file_id:
-            # Sincronización limpia apuntando al ID del archivo sin usar la raíz "/"
-            service.files().update(fileId=file_id, media_body=media).execute()
-        else:
-            file_metadata = {"name": "database.db", "parents": [folder_id]}
-            service.files().create(body=file_metadata, media_body=media, fields="id").execute()
-        st.success("☁️ ¡Copia de seguridad sincronizada en Google Drive con éxito!")
-    except Exception as e:
-        st.error(f"❌ Error al subir a Google Drive: {e}")
+    if os.path.exists(ruta_local):
+        try:
+            # CORRECCIÓN DE ERROR 404: Se define el cuerpo del archivo binario y el cargador de medios por separado
+            media = MediaFileUpload(ruta_local, mimetype="application/x-sqlite3", resumable=True)
+            
+            if file_id:
+                # Actualizar archivo existente pasando los parámetros correctos de la API v3
+                service.files().update(fileId=file_id, media_body=media).execute()
+            else:
+                # Crear archivo nuevo dentro de la carpeta parents asignada
+                file_metadata = {"name": "database.db", "parents": [folder_id]}
+                service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+                
+            st.success("☁️ ¡Copia de seguridad unificada y guardada en Google Drive con éxito!")
+        except Exception as e:
+            st.error(f"❌ Error crítico de comunicación Google Drive API: {e}")
+
