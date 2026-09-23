@@ -4,7 +4,6 @@ import json
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
-
 def obtener_servicio_drive():
     """Conecta con Google Drive leyendo el archivo JSON local y reparando su estructura interna"""
     ruta_json = "claves_google.json"
