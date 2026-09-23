@@ -18,7 +18,6 @@ def obtener_servicio_drive():
         return None
         
     try:
-        # ARREGLO CRÍTICO: Leer el JSON de GitHub y forzar el reemplazo de los saltos de línea en memoria
         with open(ruta_json, "r") as f:
             cred_info = json.load(f)
             
@@ -28,8 +27,6 @@ def obtener_servicio_drive():
         credentials = service_account.Credentials.from_service_account_info(
             cred_info, scopes=["https://googleapis.com"]
         )
-        
-        # Conexión explícita al servicio de archivos de Google v3
         service = build("drive", "v3", credentials=credentials)
         return service, folder_id
     except Exception:
@@ -50,7 +47,8 @@ def descargar_base_datos():
         results = service.files().list(q=query, fields="files(id)", spaces="drive").execute()
         files = results.get("files", [])
         if files:
-            file_id = files[0]["id"]  # Corrección de índice para extraer el ID del archivo
+            # CORRECCIÓN MAESTRA: Se extrae el ID apuntando al primer elemento de la lista [0]
+            file_id = files[0]["id"]
             request = service.files().get_media(fileId=file_id)
             with open(ruta_local, "wb") as fh:
                 downloader = MediaIoBaseDownload(fh, request)
@@ -72,22 +70,21 @@ def respaldar_base_datos():
     service, folder_id = res
     if os.path.exists(ruta_local):
         try:
-            # Buscamos si ya existe el archivo en tu carpeta usando el buscador nativo
             query = f"name = 'database.db' and '{folder_id}' in parents and trashed = false"
             results = service.files().list(q=query, fields="files(id)", spaces="drive").execute()
             files = results.get("files", [])
             
-            # Formato de transmisión binario nativo exigido por Google v3
             media = MediaFileUpload(ruta_local, mimetype="application/x-sqlite3", resumable=True)
             
             if files:
-                file_id = files[0]["id"]  # Extrae de forma segura el ID del archivo existente
+                # CORRECCIÓN MAESTRA: Se extrae el ID apuntando al primer elemento de la lista [0]
+                file_id = files[0]["id"]
                 service.files().update(fileId=file_id, media_body=media).execute()
             else:
-                # Si es la primera vez, crea el archivo vinculándolo a tu carpeta parents
                 file_metadata = {"name": "database.db", "parents": [folder_id]}
                 service.files().create(body=file_metadata, media_body=media, fields="id").execute()
                 
             st.success("☁️ ¡Copia de seguridad sincronizada en Google Drive con éxito!")
         except Exception as e:
             st.error(f"❌ Error al subir a Google Drive: {e}")
+
