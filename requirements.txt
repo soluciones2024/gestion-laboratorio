@@ -6,3 +6,4 @@ segno
 requests
 xlsxwriter
 qrcode
+dropbox
