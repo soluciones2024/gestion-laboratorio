@@ -27,18 +27,8 @@ def obtener_servicio_drive():
     except Exception:
         return None
 
-def buscar_archivo_en_drive(service, folder_id):
-    """Busca si el archivo database.db ya existe estrictamente dentro de la carpeta asignada"""
-    try:
-        query = f"name = 'database.db' and '{folder_id}' in parents and trashed = false"
-        results = service.files().list(q=query, fields="files(id, name)").execute()
-        files = results.get("files", [])
-        return files[0]["id"] if files else None
-    except Exception:
-        return None
-
 def descargar_base_datos():
-    """Descarga la base de datos de Drive al iniciar el servidor"""
+    """Descarga la base de datos de Drive al iniciar el servidor buscando el archivo de forma segura"""
     ruta_local = "database.db"
     res = obtener_servicio_drive()
     if not res:
@@ -47,49 +37,58 @@ def descargar_base_datos():
         return
         
     service, folder_id = res
-    file_id = buscar_archivo_en_drive(service, folder_id)
     
-    if file_id:
-        try:
+    try:
+        # Búsqueda ultra-acotada usando el endpoint correcto de v3
+        query = f"name = 'database.db' and '{folder_id}' in parents and trashed = false"
+        results = service.files().list(q=query, fields="files(id)", spaces="drive").execute()
+        files = results.get("files", [])
+        
+        if files:
+            file_id = files[0]["id"]
             request = service.files().get_media(fileId=file_id)
             with open(ruta_local, "wb") as fh:
                 downloader = MediaIoBaseDownload(fh, request)
                 done = False
                 while not done:
                     status, done = downloader.next_chunk()
-        except Exception:
+        else:
             if not os.path.exists(ruta_local):
                 with open(ruta_local, "w") as f: pass
-    else:
+    except Exception:
         if not os.path.exists(ruta_local):
             with open(ruta_local, "w") as f: pass
 
 def respaldar_base_datos():
-    """Sube y actualiza el archivo database.db en Google Drive usando el método de carga binaria correcto"""
+    """Sube y actualiza la base de datos directo al endpoint de subida de Google Drive"""
     ruta_local = "database.db"
     res = obtener_servicio_drive()
     
     if not res:
-        st.info("💡 Nota: El sistema está operando en modo local o procesando la sincronización de credenciales con Google Drive.")
         return
         
     service, folder_id = res
-    file_id = buscar_archivo_en_drive(service, folder_id)
     
     if os.path.exists(ruta_local):
         try:
-            # CORRECCIÓN DE ERROR 404: Se define el cuerpo del archivo binario y el cargador de medios por separado
+            # Determinamos si el archivo ya existe para actualizarlo o crearlo nuevo
+            query = f"name = 'database.db' and '{folder_id}' in parents and trashed = false"
+            results = service.files().list(q=query, fields="files(id)", spaces="drive").execute()
+            files = results.get("files", [])
+            
+            # Forzamos el uso del tipo de medio correcto para bases de datos SQLite
             media = MediaFileUpload(ruta_local, mimetype="application/x-sqlite3", resumable=True)
             
-            if file_id:
-                # Actualizar archivo existente pasando los parámetros correctos de la API v3
+            if files:
+                file_id = files[0]["id"]
+                # Actualización limpia usando la API v3 oficial de Google
                 service.files().update(fileId=file_id, media_body=media).execute()
             else:
-                # Crear archivo nuevo dentro de la carpeta parents asignada
+                # Creación inicial asignando la carpeta contenedora en los metadatos
                 file_metadata = {"name": "database.db", "parents": [folder_id]}
                 service.files().create(body=file_metadata, media_body=media, fields="id").execute()
                 
-            st.success("☁️ ¡Copia de seguridad unificada y guardada en Google Drive con éxito!")
+            st.success("☁️ ¡Copia de seguridad sincronizada en Google Drive con éxito!")
         except Exception as e:
-            st.error(f"❌ Error crítico de comunicación Google Drive API: {e}")
+            st.error(f"❌ Error de permisos o comunicación con Google: {e}")
 
