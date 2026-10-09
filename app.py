@@ -254,37 +254,45 @@ def renderizar_prestamos_rapidos_barra_local(nombre_institucion):
 # =========================================================================
 
 def ejecutar_respaldo_automatico_ti():
-    """Genera una copia de seguridad en local cada vez que ocurre un cambio exitoso"""
+    """Genera una copia de seguridad en local y fuerza la subida inmediata a Dropbox"""
     destino_carpeta = "respaldos_automaticos"
     archivo_origen = "laboratorio.db"
     
     if not os.path.exists(destino_carpeta): 
         try: os.makedirs(destino_carpeta)
-        except Exception: return False
+        except Exception: pass
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     nombre_archivo = f"{destino_carpeta}/auto_respaldo_{timestamp}.db"
     
     try:
         if os.path.exists(archivo_origen):
-            # Clonación binaria pura corregida sin parámetros inválidos
+            # 1. Guarda la copia de seguridad local
             shutil.copyfile(archivo_origen, nombre_archivo)
             
+            # Limpieza de respaldos locales antiguos
             archivos = sorted([
                 os.path.join(destino_carpeta, f) 
                 for f in os.listdir(destino_carpeta) 
                 if f.endswith('.db') and f.startswith('auto_respaldo_')
             ])
-            while len(archivos) > 10:
+            while len(archivos) > 5:
                 archivo_antiguo = archivos.pop(0)
                 if os.path.exists(archivo_antiguo): os.remove(archivo_antiguo)
-            st.toast(f"💾 Copia de seguridad guardada: {timestamp}", icon="🔄")
+            
+            # 🚀 2. LA LLAMADA CRÍTICA: Fuerza la sincronización inmediata a internet
+            from respaldo import respaldar_base_datos
+            nube_ok = respaldar_base_datos()
+            
+            if nube_ok:
+                st.toast(f"💾 ¡Sincronizado con Dropbox con éxito!", icon="☁️")
+            else:
+                st.sidebar.warning("⚠️ El cambio se guardó local, pero falló el envío a Dropbox.")
             return True
     except Exception as e:
         st.sidebar.error(f"❌ Error en motor de respaldo: {str(e)}")
         return False
     return False
-
 
 
 # =========================================================================
