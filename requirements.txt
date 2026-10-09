@@ -1,0 +1,11 @@
+streamlit
+pandas
+plotly
+openpyxl
+segno
+requests
+xlsxwriter
+qrcode
+dropbox
+python-barcode
+Pillow
