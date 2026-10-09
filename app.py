@@ -17,6 +17,34 @@ from email.mime.text import MIMEText        # <--- REVISAR QUE ESTÉ
 from email.header import Header             # <--- REVISAR QUE ESTÉ
 
 # =====================================================================
+# 📦 ACOPLADOR GLOBAL DE SEGURIDAD (MÁXIMA PERSISTENCIA EN INTERNET)
+# =====================================================================
+
+from respaldo import descargar_base_datos, respaldar_base_datos
+
+# 1. Seguro de descarga inicial única al encender el servidor en la nube
+if "db_recuperada" not in st.session_state:
+    if os.path.exists("/mount/src"):
+        descargar_base_datos()
+    st.session_state["db_recuperada"] = True
+
+# 2. INTERCEPTOR INTELIGENTE DE GUARDADOS:
+# Buscamos la variable con la que abres tu base de datos SQLite (ej: conn o conn_sqlite)
+# Si tu variable de conexión se llama distinto a 'conn', cambia la palabra abajo:
+if 'conn' in locals() or 'conn' in globals():
+    # Guardamos la función commit original de tu base de datos
+    _commit_original = conn.commit
+    
+    def commit_con_respaldo_automatico():
+        """Ejecuta tu guardado normal y fuerza la subida inmediata a internet"""
+        _commit_original()       # Guarda los datos de forma local en el PC
+        respaldar_base_datos()   # 🚀 Sube el archivo .db actualizado a internet al instante
+        
+    # Reemplazamos tu función commit por nuestro motor de red integrado
+    conn.commit = commit_con_respaldo_automatico
+# =====================================================================
+
+# =====================================================================
 # INTERRUPTOR ADAPTATIVO: MÁXIMA VELOCIDAD LOCAL + SEGURIDAD EN INTERNET
 # =====================================================================
 # =====================================================================
