@@ -15,7 +15,6 @@ except Exception:
 def obtener_conexion():
     """Abre el canal de comunicación real directo con el servidor en internet"""
     try:
-        # Se conecta usando tu enlace seguro de Neon guardado en los Secrets
         conn = psycopg2.connect(st.secrets["base_datos"]["url"])
         conn.autocommit = True  # Fuerza el guardado inmediato en red
         return conn
@@ -30,20 +29,17 @@ def inicializar_db():
         return
     cursor = conn.cursor()
     try:
-        # 1. Creación de tablas operativas principales
+        # 1. Creación compacta de tablas operativas principales (Formatos Largos)
         cursor.execute("CREATE TABLE IF NOT EXISTS inventario_hardware (id SERIAL PRIMARY KEY, codigo_barra TEXT UNIQUE NOT NULL, tipo_equipo TEXT NOT NULL, marca TEXT, modelo TEXT, estado TEXT NOT NULL, ubicacion TEXT, notes TEXT, fecha_registro TEXT);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos_laboratorio (id SERIAL PRIMARY KEY, codigo_barra TEXT NOT NULL, rut_solicitante TEXT NOT NULL, nombre_solicitante TEXT NOT NULL, fecha_prestamo TEXT NOT NULL, fecha_devolucion TEXT, estado_prestamo TEXT NOT NULL);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos_laboratorio (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT NOT NULL, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS bitacora_notas (id SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT NOT NULL);")
         
-        # 2. 🛡️ ESPEJOS DE SEGURIDAD CORREGIDOS PARA ESTADÍSTICAS Y ALERTAS (LÍNEAS 700 Y 1000+)
-        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos (id SERIAL PRIMARY KEY, id_equipo TEXT NOT NULL, usuario TEXT NOT NULL, fecha_limite TEXT NOT NULL, estado_prestamo TEXT NOT NULL);")
+        # 2. 🛡️ ESCUDO DE COLUMNAS MASIVO PARA CONSULTAS AVANZADAS (LÍNEAS 700+ Y JOINS)
+        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, usuario TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS equipos (id SERIAL PRIMARY KEY, id_equipo INTEGER, codigo_barra TEXT, tipo TEXT, tipo_equipo TEXT, marca TEXT, modelo TEXT, estado TEXT, ubicacion TEXT);")
         cursor.execute("CREATE TABLE IF NOT EXISTS compras (id SERIAL PRIMARY KEY, cantidad INTEGER NOT NULL, costo_unitario NUMERIC NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS salas (id SERIAL PRIMARY KEY, nombre_sala TEXT UNIQUE NOT NULL, estado TEXT NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT);")
-        
-        # 🚀 TABLA EQUIPOS REPARADA: Incluye id_equipo, marca y modelo exigidos por la línea 1077
-        cursor.execute("CREATE TABLE IF NOT EXISTS equipos (id SERIAL PRIMARY KEY, id_equipo INTEGER, tipo TEXT NOT NULL, marca TEXT, modelo TEXT, estado TEXT NOT NULL, ubicacion TEXT NOT NULL);")
-        
     except Exception: 
         pass
     finally:
@@ -58,17 +54,13 @@ def to_excel(df):
     return output.getvalue()
 
 def obtener_bytes_db(): 
-    """Mantiene compatibilidad con llamados antiguos de respaldo local"""
     return b""
 
 def restaurar_db_desde_bytes(datos_bytes): 
-    """Maneja en silencio los intentos antiguos de restauración local"""
     return True
 
 # =====================================================================
 # 🚀 PARCHE DE RED REDIRECTOR (INTERCEPTOR DE SQLITE)
 # =====================================================================
 import sqlite3
-# Obligamos a que cualquier variable 'conn' o 'cursor' nativa que use tu app.py
-# redirija todo el tráfico de forma invisible directo hacia la base de datos de Neon
 sqlite3.connect = lambda *args, **kwargs: obtener_conexion()
