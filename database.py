@@ -65,19 +65,21 @@ def obtener_conexion():
     return _sqlite3_connect_original(DB_PATH, check_same_thread=False)
 
 def inicializar_db():
-    """Asegura la descarga inicial y repara de forma automática cualquier tabla faltante"""
+    """Asegura la descarga inicial y repara de forma automática cualquier tabla faltante con sus columnas relacionales"""
     descargar_base_datos()
     
-    # 🛡️ CONSTRUCTOR DE TABLAS AUTOMÁTICO DE SEGURIDAD
-    # Si el archivo .db descargado de GitHub no posee las tablas, las crea al instante
+    # 🛡️ CONSTRUCTOR DE TABLAS COMPLETO DE SEGURIDAD INTERNACIONAL
     conn = _sqlite3_connect_original(DB_PATH, check_same_thread=False)
     cursor = conn.cursor()
     try:
         cursor.execute("CREATE TABLE IF NOT EXISTS inventario_hardware (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo_barra TEXT UNIQUE NOT NULL, tipo_equipo TEXT NOT NULL, marca TEXT, modelo TEXT, estado TEXT NOT NULL, ubicacion TEXT, notes TEXT, fecha_registro TEXT);")
         cursor.execute("CREATE TABLE IF NOT EXISTS prestamos_laboratorio (id INTEGER PRIMARY KEY AUTOINCREMENT, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT NOT NULL, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT NOT NULL);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS bitacora_notas (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT NOT NULL);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS bitacora_notas (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, Microsoft_descripcion TEXT, descripcion TEXT NOT NULL);")
+        
+        # Inyección relacional masiva de columnas en prestamos y equipos para compatibilidad con JOINS (Líneas 700+ y 1000+)
         cursor.execute("CREATE TABLE IF NOT EXISTS prestamos (id INTEGER PRIMARY KEY AUTOINCREMENT, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, usuario TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT, observaciones TEXT);")
         cursor.execute("CREATE TABLE IF NOT EXISTS equipos (id INTEGER PRIMARY KEY AUTOINCREMENT, id_equipo INTEGER, codigo_barra TEXT, tipo TEXT, tipo_equipo TEXT, marca TEXT, modelo TEXT, estado TEXT, ubicacion TEXT);")
+        
         cursor.execute("CREATE TABLE IF NOT EXISTS compras (id INTEGER PRIMARY KEY AUTOINCREMENT, cantidad INTEGER NOT NULL, costo_unitario NUMERIC NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS salas (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre_sala TEXT UNIQUE NOT NULL, estado TEXT NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT);")
