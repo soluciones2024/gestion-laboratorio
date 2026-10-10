@@ -8,4 +8,4 @@ xlsxwriter
 qrcode
 python-barcode
 Pillow
-st-supabase-connection
+psycopg2-binary
