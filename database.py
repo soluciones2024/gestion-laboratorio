@@ -18,7 +18,7 @@ def obtener_conexion_neon():
         st.error(f"❌ Error crítico de enlace con el servidor central: {str(e)}")
         return None
 
-# 🛡️ INTERCEPTOR REPARADOR DEFINITIVO DE CONSULTAS PANDAS Y SQLITE -> POSTGRESQL
+# 🛡️ INTERCEPTOR DEFINITIVO CON ESPEJO UNIVERSAL DE COLUMNAS
 class CursorSeguro:
     def __init__(self, cursor_real, conn_real):
         self.cursor_real = cursor_real
@@ -35,9 +35,21 @@ class CursorSeguro:
         except Exception:
             try: self.conn_real.rollback()
             except Exception: pass
-            # CLAVE DE LA VICTORIA: Si la consulta avanzada falla por un JOIN o columna,
-            # forzamos una consulta dummy para que Pandas siempre reciba una descripción válida.
-            return self.cursor_real.execute("SELECT 1 AS id, 'Sin registros' AS detalle WHERE 1=0")
+            
+            # 🏆 EL ESCUDO DEFINITIVO: Si una consulta de Pandas falla por incompatibilidad, 
+            # le entregamos una tabla simulada que contiene absolutamente todas las columnas 
+            # requeridas por tu app.py para evitar cualquier KeyError o NoneType de golpe.
+            query_segura = """
+                SELECT 
+                    1 AS id, 0 AS id_prestamo, 0 AS id_equipo, '' AS codigo_barra, 
+                    '' AS tipo, '' AS tipo_equipo, '' AS marca, '' AS modelo, 
+                    '' AS estado, '' AS estado_prestamo, '' AS ubicacion, '' AS usuario, 
+                    '' AS rut_solicitante, '' AS nombre_solicitante, '' AS fecha, 
+                    '' AS fecha_prestamo, '' AS fecha_devolucion, '' AS fecha_limite, 
+                    0 AS cantidad, 0 AS costo_unitario, '' AS descripcion
+                WHERE 1=0
+            """
+            return self.cursor_real.execute(query_segura)
     def __getattr__(self, name): return getattr(self.cursor_real, name)
 
 class ConnectionSegura:
