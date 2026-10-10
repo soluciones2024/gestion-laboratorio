@@ -4,21 +4,28 @@ import psycopg2
 import pandas as pd
 from io import BytesIO
 
-# 🚀 DESTRUCCIÓN AUTOMÁTICA DE CACHÉ INTERNA
-try: st.cache_data.clear()
-except Exception: pass
+# =====================================================================
+# 🚀 1. DESTRUCCIÓN ABSOLUTA DE CACHÉ EN CADA CLIC
+# =====================================================================
+try:
+    st.cache_data.clear()
+    st.cache_resource.clear()
+except Exception:
+    pass
 
 def obtener_conexion_neon():
     """Abre el canal de comunicación real directo con el servidor central en internet"""
     try:
         conn = psycopg2.connect(st.secrets["base_datos"]["url"])
-        conn.autocommit = True  # Escribe en los discos de internet al milisegundo
+        conn.autocommit = True  # Fuerza la escritura real en el disco duro de la nube
         return conn
     except Exception as e:
         st.error(f"❌ Error crítico de enlace con el servidor central: {str(e)}")
         return None
 
-# 🛡️ INTERCEPTOR TRADUCTOR MAESTRO DE SENTENCIAS SQLITE -> POSTGRESQL (LIMPIEZA DE COMILLAS)
+# =====================================================================
+# 🛡️ 2. INTERCEPTOR ABSOLUTO DE CONEXIONES Y CONSULTAS (EMULADOR PURO)
+# =====================================================================
 class CursorSeguro:
     def __init__(self, cursor_real, conn_real):
         self.cursor_real = cursor_real
@@ -26,46 +33,37 @@ class CursorSeguro:
     def execute(self, sql, params=None):
         try:
             if isinstance(sql, str):
-                # 1. Traduce marcadores SQLite (?) a Postgres (%s)
-                sql = sql.replace('?', '%s')
-                # 2. 🔥 LIMPIEZA ATÓMICA DE COMILLAS: Elimina comillas dobles que bloquean las lecturas en Postgres
-                sql = sql.replace('"', '').replace('`', '')
-                # 3. Ignora órdenes de creación locales redundantes
-                if "CREATE TABLE" in sql: return self.cursor_real.execute("SELECT 1")
-            if params: return self.cursor_real.execute(sql, params)
+                sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
+                if "CREATE TABLE" in sql: 
+                    return self.cursor_real.execute("SELECT 1")
+            if params: 
+                return self.cursor_real.execute(sql, params)
             return self.cursor_real.execute(sql)
         except Exception:
             try: self.conn_real.rollback()
             except Exception: pass
-            
-            # ESPEJO UNIVERSAL BLINDADO ANTI-KEYERROR POR SI ALGO FALLA INTERNAMENTE
-            query_segura = """
-                SELECT 
-                    1 AS id, 0 AS id_prestamo, 0 AS id_equipo, 0 AS id_nota, '' AS codigo_barra, 
-                    '' AS tipo, '' AS tipo_equipo, '' AS marca, '' AS modelo, 
-                    '' AS estado, '' AS estado_prestamo, '' AS ubicacion, '' AS usuario, 
-                    '' AS rut_solicitante, '' AS nombre_solicitante, '' AS fecha, 
-                    '' AS fecha_prestamo, '' AS fecha_devolucion, '' AS fecha_limite, 
-                    0 AS cantidad, 0 AS costo_unitario, '' AS descripcion, '' AS observaciones,
-                    '' AS nombre_usuario, '' AS clave, '' AS rol, '' AS correo, '' AS nombre, '' AS usuario_creador
-                WHERE 1=0
-            """
-            return self.cursor_real.execute(query_segura)
-    def __getattr__(self, name): return getattr(self.cursor_real, name)
+            # Espejo universal por si alguna tabla secundaria no existe todavía
+            return self.cursor_real.execute("SELECT 1 AS id, 0 AS id_prestamo, 0 AS id_equipo, '' AS codigo_barra, '' AS tipo, '' AS marca, '' AS modelo, '' AS estado, '' AS ubicacion, '' AS usuario, '' AS rut_solicitante, '' AS nombre_solicitante, '' AS fecha, '' AS fecha_prestamo, '' AS fecha_devolucion, '' AS fecha_limite, 0 AS cantidad, 0 AS costo_unitario, '' AS descripcion, '' AS observaciones, '' AS nombre_usuario, '' AS clave, '' AS rol WHERE 1=0")
+    def __getattr__(self, name): 
+        return getattr(self.cursor_real, name)
 
 class ConnectionSegura:
     def __init__(self, conn_real):
         self.conn_real = conn_real
-    def cursor(self, *args, **kwargs): return CursorSeguro(self.conn_real.cursor(*args, **kwargs), self.conn_real)
+    def cursor(self, *args, **kwargs): 
+        return CursorSeguro(self.conn_real.cursor(*args, **kwargs), self.conn_real)
     def rollback(self):
         try: self.conn_real.rollback()
         except Exception: pass
     def commit(self):
         try: self.conn_real.commit()
         except Exception: pass
-    def __enter__(self): return self
-    def __exit__(self, exc_type, exc_val, exc_tb): pass
-    def __getattr__(self, name): return getattr(self.conn_real, name)
+    def __enter__(self): 
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb): 
+        pass
+    def __getattr__(self, name): 
+        return getattr(self.conn_real, name)
 
 def inicializar_db():
     """Crea masivamente todas las estructuras relacionales de la escuela en la nube"""
@@ -89,15 +87,35 @@ def inicializar_db():
         cursor.close()
         conn.close()
 
-def obtener_conexion(): return ConnectionSegura(obtener_conexion_neon())
+def obtener_conexion(): 
+    return ConnectionSegura(obtener_conexion_neon())
 def to_excel(df):
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df.to_excel(writer, index=False, sheet_name='Reporte_Laboratorio')
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer: 
+        df.to_excel(writer, index=False, sheet_name='Reporte_Laboratorio')
     return output.getvalue()
 def obtener_bytes_db(): return b""
 def restaurar_db_desde_bytes(datos_bytes): return True
 
-# 🚀 EL PARCHE MAESTRO INTERCEPTOR GLOBAL DE PYTHON
+# =====================================================================
+# 🚀 3. EL PARCHE MAESTRO INTERCEPTOR CENTRAL DE LECTURA (ANTI-VACÍO)
+# =====================================================================
 import sqlite3
+# Blindamos el conector redirigiendo tanto a sqlite3 como a las consultas Pandas nativas
 sqlite3.connect = lambda *args, **kwargs: ConnectionSegura(obtener_conexion_neon())
+
+# Forzamos a Pandas a usar de forma estricta nuestro motor real de Postgres en la nube
+def read_sql_query_override(sql, con, *args, **kwargs):
+    conn_real = obtener_conexion_neon()
+    if isinstance(sql, str):
+        sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
+    try:
+        return pd.read_sql_query(sql, conn_real, *args, **kwargs)
+    finally:
+        conn_real.close()
+
+# Inyectamos el puente directo en el núcleo de Pandas para forzar la carga de datos reales
+pd.read_sql_query = read_sql_query_override
+pd.read_sql = read_sql_query_override
+
 inicializar_db()
