@@ -741,11 +741,13 @@ if choice == "Panel de Control":
         st.session_state["popup_bitacora_mostrado"] = False
 
     with obtener_conexion() as conn:
-        df_mora_eq_popup = pd.read_sql_query("""
+    # 📋 MODIFICA ÚNICAMENTE EL SÍMBOLO EN ESA LÍNEA PARA QUE QUEDE ASÍ:
+    df_mora_eq_popup = pd.read_sql_query("""
         SELECT id_equipo, usuario, fecha_limite
         FROM prestamos
-        WHERE estado_prestamo = 'Activo' AND fecha_limite < %s
+        WHERE estado_prestamo = 'Activo' AND fecha_limite < ?
     """, conn, params=(hoy_str,))
+
         
         try:
             df_mora_bit_popup = pd.read_sql_query("""
