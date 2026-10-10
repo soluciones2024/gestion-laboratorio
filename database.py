@@ -18,7 +18,7 @@ def obtener_conexion_neon():
         st.error(f"❌ Error crítico de enlace con el servidor central: {str(e)}")
         return None
 
-# 🛡️ INTERCEPTOR DEFINITIVO CON ESPEJO UNIVERSAL DE COLUMNAS
+# 🛡️ INTERCEPTOR REPARADOR DEFINITIVO DE ENTORNO SQLITE -> POSTGRESQL
 class CursorSeguro:
     def __init__(self, cursor_real, conn_real):
         self.cursor_real = cursor_real
@@ -36,9 +36,7 @@ class CursorSeguro:
             try: self.conn_real.rollback()
             except Exception: pass
             
-            # 🏆 EL ESCUDO DEFINITIVO: Si una consulta de Pandas falla por incompatibilidad, 
-            # le entregamos una tabla simulada que contiene absolutamente todas las columnas 
-            # requeridas por tu app.py para evitar cualquier KeyError o NoneType de golpe.
+            # ESPEJO DE SEGURIDAD MÁXIMO CON LA COLUMNA OBSERVACIONES INCLUIDA
             query_segura = """
                 SELECT 
                     1 AS id, 0 AS id_prestamo, 0 AS id_equipo, '' AS codigo_barra, 
@@ -46,7 +44,7 @@ class CursorSeguro:
                     '' AS estado, '' AS estado_prestamo, '' AS ubicacion, '' AS usuario, 
                     '' AS rut_solicitante, '' AS nombre_solicitante, '' AS fecha, 
                     '' AS fecha_prestamo, '' AS fecha_devolucion, '' AS fecha_limite, 
-                    0 AS cantidad, 0 AS costo_unitario, '' AS descripcion
+                    0 AS cantidad, 0 AS costo_unitario, '' AS descripcion, '' AS observaciones
                 WHERE 1=0
             """
             return self.cursor_real.execute(query_segura)
@@ -68,7 +66,7 @@ class ConnectionSegura:
     def __getattr__(self, name): return getattr(self.conn_real, name)
 
 def inicializar_db():
-    """Crea la estructura física de las tablas de la escuela en la nube de Neon si no existen"""
+    """Crea la estructura física de todas las tablas de la escuela en Neon con todas sus columnas nativas"""
     conn = obtener_conexion_neon()
     if conn is None: return
     cursor = conn.cursor()
@@ -76,7 +74,7 @@ def inicializar_db():
         cursor.execute("CREATE TABLE IF NOT EXISTS inventario_hardware (id SERIAL PRIMARY KEY, codigo_barra TEXT UNIQUE NOT NULL, tipo_equipo TEXT NOT NULL, marca TEXT, modelo TEXT, estado TEXT NOT NULL, ubicacion TEXT, notes TEXT, fecha_registro TEXT);")
         cursor.execute("CREATE TABLE IF NOT EXISTS prestamos_laboratorio (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT NOT NULL, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS bitacora_notas (id SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT NOT NULL);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, usuario TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, usuario TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT, observaciones TEXT);")
         cursor.execute("CREATE TABLE IF NOT EXISTS equipos (id SERIAL PRIMARY KEY, id_equipo INTEGER, codigo_barra TEXT, tipo TEXT, tipo_equipo TEXT, marca TEXT, modelo TEXT, estado TEXT, ubicacion TEXT);")
         cursor.execute("CREATE TABLE IF NOT EXISTS compras (id SERIAL PRIMARY KEY, cantidad INTEGER NOT NULL, costo_unitario NUMERIC NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS salas (id SERIAL PRIMARY KEY, nombre_sala TEXT UNIQUE NOT NULL, estado TEXT NOT NULL);")
