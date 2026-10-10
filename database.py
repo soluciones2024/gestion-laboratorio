@@ -1,124 +1,109 @@
 import os
 import streamlit as st
-import psycopg2
+import sqlite3
 import pandas as pd
 from io import BytesIO
-import sqlite3
+import requests
+import base64
 
-# 🚀 1. DESTRUCCIÓN ABSOLUTA DE CACHÉ EN CADA CLIC
-try:
-    st.cache_data.clear()
-    st.cache_resource.clear()
-except Exception:
-    pass
+DB_PATH = "laboratorio.db"
 
-# Guardamos las funciones originales de Pandas y SQLite
-_pandas_read_sql_query_original = pd.read_sql_query
+# Guardamos la función de conexión original de Python de respaldo
 _sqlite3_connect_original = sqlite3.connect
 
-def obtener_conexion_neon():
-    """Abre el canal de comunicación real directo con el servidor central en internet"""
+def descargar_base_datos():
+    """Descarga tu base de datos real con todos tus datos históricos al arrancar el servidor web"""
+    if os.path.exists(DB_PATH):
+        try: os.remove(DB_PATH) # Limpia cualquier residuo viejo del inicio
+        except: pass
     try:
-        conn = psycopg2.connect(st.secrets["base_datos"]["url"])
-        conn.autocommit = True  # Escribe en los discos de internet al milisegundo
-        return conn
-    except Exception as e:
-        st.error(f"❌ Error crítico de enlace con el servidor central: {str(e)}")
-        return None
+        # Descarga directa en texto binario desde tu repositorio master en GitHub
+        url = "https://githubusercontent.com"
+        response = requests.get(url, timeout=12)
+        if response.status_code == 200:
+            with open(DB_PATH, "wb") as f:
+                f.write(response.content)
+            return True
+    except Exception:
+        pass
+    return False
+
+def respaldar_base_datos():
+    """Sube tu archivo .db modificado directamente a GitHub usando tu API de seguridad"""
+    if not os.path.exists(DB_PATH):
+        return False
+    try:
+        token = st.secrets["github"]["token"]
+        url = "https://github.com"
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        
+        # Obtenemos el identificador único del archivo en la nube para poder sobreescribirlo
+        res_get = requests.get(url, headers=headers, timeout=5)
+        sha = res_get.json().get("sha") if res_get.status_code == 200 else None
+        
+        with open(DB_PATH, "rb") as f:
+            content = base64.b64encode(f.read()).decode("utf-8")
+            
+        data = {
+            "message": "☁️ Sincronización Automática Escuela",
+            "content": content,
+            "branch": "master"
+        }
+        if sha: 
+            data["sha"] = sha
+            
+        requests.put(url, headers=headers, json=data, timeout=15)
+        return True
+    except Exception:
+        return False
 
 # =====================================================================
-# 🛡️ 2. INTERCEPTOR REPARADOR SINTÁCTICO DE EMULACIÓN SQLITE
+# ⚙️ FUNCIONES DE INTERFAZ EXIGIDAS POR TU APP.PY
 # =====================================================================
-class CursorSeguro:
-    def __init__(self, cursor_real, conn_real):
-        self.cursor_real = cursor_real
-        self.conn_real = conn_real
-    def execute(self, sql, params=None):
-        try:
-            if isinstance(sql, str):
-                sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
-                if "CREATE TABLE" in sql: return self.cursor_real.execute("SELECT 1")
-            if params: return self.cursor_real.execute(sql, params)
-            return self.cursor_real.execute(sql)
-        except Exception:
-            try: self.conn_real.rollback()
-            except Exception: pass
-            return self.cursor_real.execute("SELECT 1 AS id WHERE 1=0")
-    def __getattr__(self, name): return getattr(self.cursor_real, name)
-
-class ConnectionSegura:
-    def __init__(self, conn_real):
-        self.conn_real = conn_real
-    def cursor(self, *args, **kwargs): return CursorSeguro(self.conn_real.cursor(*args, **kwargs), self.conn_real)
-    def rollback(self):
-        try: self.conn_real.rollback()
-        except Exception: pass
-    def commit(self):
-        try: self.conn_real.commit()
-        except Exception: pass
-    def __enter__(self): return self
-    def __exit__(self, exc_type, exc_val, exc_tb): pass
-    def __getattr__(self, name): return getattr(self.conn_real, name)
+def obtener_conexion():
+    """Devuelve la conexión SQLite nativa que tu app ya sabe usar perfectamente"""
+    return _sqlite3_connect_original(DB_PATH, check_same_thread=False)
 
 def inicializar_db():
-    """Crea masivamente todas las estructuras relacionales de la escuela en la nube"""
-    conn = obtener_conexion_neon()
-    if conn is None: return
-    cursor = conn.cursor()
-    try:
-        cursor.execute("CREATE TABLE IF NOT EXISTS inventario_hardware (id SERIAL PRIMARY KEY, codigo_barra TEXT UNIQUE NOT NULL, tipo_equipo TEXT NOT NULL, marca TEXT, modelo TEXT, estado TEXT NOT NULL, ubicacion TEXT, notes TEXT, fecha_registro TEXT);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos_laboratorio (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT NOT NULL, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT NOT NULL);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS bitacora_notas (id SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT NOT NULL);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, usuario TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT, observaciones TEXT);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS equipos (id SERIAL PRIMARY KEY, id_equipo INTEGER, codigo_barra TEXT, tipo TEXT, tipo_equipo TEXT, marca TEXT, modelo TEXT, estado TEXT, ubicacion TEXT);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS compras (id SERIAL PRIMARY KEY, cantidad INTEGER NOT NULL, costo_unitario NUMERIC NOT NULL);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS salas (id SERIAL PRIMARY KEY, nombre_sala TEXT UNIQUE NOT NULL, estado TEXT NOT NULL);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (id SERIAL PRIMARY KEY, nombre_usuario TEXT UNIQUE NOT NULL, clave TEXT NOT NULL, rol TEXT NOT NULL, correo TEXT, nombre TEXT, fecha_creacion TEXT, usuario_creador TEXT);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS accounts (id SERIAL PRIMARY KEY, nombre_usuario TEXT UNIQUE NOT NULL, clave TEXT NOT NULL, rol TEXT NOT NULL, correo TEXT, nombre TEXT, fecha_creacion TEXT, usuario_creador TEXT);")
-        cursor.execute("CREATE TABLE IF NOT EXISTS cuentas_secundarias (id SERIAL PRIMARY KEY, nombre_usuario TEXT UNIQUE NOT NULL, clave TEXT NOT NULL, rol TEXT NOT NULL, correo TEXT, nombre TEXT, fecha_creacion TEXT, usuario_creador TEXT);")
-    except Exception: pass
-    finally:
-        cursor.close()
-        conn.close()
+    """Asegura la descarga inicial del archivo histórico en el arranque"""
+    descargar_base_datos()
 
-def obtener_conexion(): return ConnectionSegura(obtener_conexion_neon())
 def to_excel(df):
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df.to_excel(writer, index=False, sheet_name='Reporte_Laboratorio')
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Reporte_Laboratorio')
     return output.getvalue()
-def obtener_bytes_db(): return b""
-def restaurar_db_desde_bytes(datos_bytes): return True
 
-# =====================================================================
-# 🚀 3. EL PARCHE INTERCEPTOR CENTRAL DE LECTURA (AUTOCOMPLETADO DE COLUMNAS)
-# =====================================================================
-sqlite3.connect = lambda *args, **kwargs: ConnectionSegura(obtener_conexion_neon())
-
-def read_sql_query_override(sql, con, *args, **kwargs):
-    conn_real = obtener_conexion_neon()
-    if conn_real is None:
-        return pd.DataFrame()
-    if isinstance(sql, str):
-        sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
+def obtener_bytes_db():
     try:
-        df = _pandas_read_sql_query_original(sql, conn_real, *args, **kwargs)
-        
-        # 🛡️ EL ESCUDO INTELECTUAL: Si la tabla de internet está vacía, le inyectamos 
-        # las columnas obligatorias para que los filtros de app.py pasen de largo sin KeyError
-        columnas_obligatorias = ['id_prestamo', 'id_equipo', 'codigo_barra', 'estado', 'observaciones', 'nombre_usuario']
-        for col in columnas_obligatorias:
-            if col not in df.columns:
-                df[col] = None
-        return df
-    except Exception:
-        # En caso de fallo crítico estructural, devolvemos un cuadro con la columna para salvar el inicio
-        return pd.DataFrame(columns=['id_prestamo', 'id_equipo', 'codigo_barra', 'estado', 'observaciones', 'nombre_usuario'])
-    finally:
-        try: conn_real.close()
-        except Exception: pass
+        with open(DB_PATH, "rb") as f: return f.read()
+    except Exception: return b""
 
-pd.read_sql_query = read_sql_query_override
-pd.read_sql = read_sql_query_override
+def restaurar_db_desde_bytes(datos_bytes):
+    try:
+        with open(DB_PATH, "wb") as f: f.write(datos_bytes)
+        respaldar_base_datos()
+        return True
+    except Exception: return False
 
+# =====================================================================
+# 🚀 INTERCEPTOR DE GUARDADO AUTOMÁTICO (EMULADOR SIN MORDERSE LA COLA)
+# =====================================================================
+class SQLiteSincronizado:
+    def __init__(self, conn_real):
+        self.conn_real = conn_real
+    def commit(self):
+        self.conn_real.commit()
+        respaldar_base_datos() # 🔥 GRABADO INDESTRUCTIBLE: Sube el archivo modificado a GitHub en cada commit
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_val, exc_tb): self.conn_real.close()
+    def __getattr__(self, name): return getattr(self.conn_real, name)
+
+# Redirección atómica en el motor de Python
+sqlite3.connect = lambda *args, **kwargs: SQLiteSincronizado(_sqlite3_connect_original(DB_PATH, check_same_thread=False))
+
+# Descarga el archivo con tus datos apenas se enciende internet
 inicializar_db()
