@@ -60,7 +60,7 @@ if 'conn' in locals() or 'conn' in globals():
 # =====================================================================
 # 🛠️ NUEVO MOTOR DE BASE DE DATOS EN LA NUBE (CONEXIÓN BLINDADA)
 # =====================================================================
-from st_supabase_connection import SupabaseConnection
+#from st_supabase_connection import SupabaseConnection
 
 try:
     # Pasamos las credenciales directamente por código para saltar bloqueos del PC
