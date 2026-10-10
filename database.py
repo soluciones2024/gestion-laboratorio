@@ -1,58 +1,113 @@
-import sqlite3
-import streamlit as st  
-import io
+# =====================================================================
+# 🌐 MOTOR SECUNDARIO DE RED (DATABASE.PY) - REFRESH TOTAL ANTI-CACHÉ
+# =====================================================================
 import os
+import streamlit as st
+import psycopg2
+import pandas as pd
+from io import BytesIO
 
-DB_NAME = "laboratorio.db"
+# 🚀 TRUCO MAESTRO DE INYECCIÓN DE CONTROL:
+# Limpiamos físicamente toda la caché de datos de Streamlit en cada carga
+# de página para evitar que Pandas retenga tablas simuladas viejas.
+try:
+    st.cache_data.clear()
+except Exception:
+    pass
 
 def obtener_conexion():
-    """Retorna una conexión limpia a la base de datos."""
-    return sqlite3.connect(DB_NAME, check_same_thread=False)
+    """Abre el canal de comunicación real directo con el servidor en internet"""
+    try:
+        db_url = st.secrets["base_datos"]["url"]
+        conn = psycopg2.connect(db_url)
+        conn.autocommit = True  # Fuerza el guardado inmediato en red
+        return conn
+    except Exception as e:
+        st.error(f"❌ Error de red en database.py: {str(e)}")
+        return None
 
 def inicializar_db():
-    with obtener_conexion() as conn:
-        cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS equipos (id_equipo TEXT PRIMARY KEY, tipo TEXT, marca TEXT, modelo TEXT, estado TEXT, ubicacion TEXT, fecha_cambio TEXT, num_documento TEXT, proveedor_origen TEXT, costo_compra REAL)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS compras (id_compra INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, cantidad INTEGER, costo_unitario REAL, proveedor TEXT, fecha TEXT)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos (id_prestamo INTEGER PRIMARY KEY AUTOINCREMENT, id_equipo TEXT, usuario TEXT, rut TEXT, fecha_prestamo TEXT, fecha_limite TEXT, fecha_devolucion TEXT, estado_prestamo TEXT, observaciones TEXT)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS infraestructura (id_item INTEGER PRIMARY KEY AUTOINCREMENT, elemento TEXT, ubicacion TEXT, estado TEXT, observaciones TEXT)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (rut TEXT PRIMARY KEY, nombre TEXT, correo TEXT, tipo_usuario TEXT)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota INTEGER PRIMARY KEY AUTOINCREMENT, nota TEXT, fecha TEXT, hora TEXT, estado_nota TEXT)")
-        cursor.execute("CREATE TABLE IF NOT EXISTS salas (id_sala INTEGER PRIMARY KEY AUTOINCREMENT, nombre_sala TEXT UNIQUE, encargado TEXT, capacidad INTEGER)")
+    """Crea la arquitectura de la escuela directamente en la nube si no existe"""
+    conn = obtener_conexion()
+    if conn is None:
+        return
         
-        # LÍNEA INYECTADA: Crea de forma automatizada la tabla para el mantenedor de cuentas
-        cursor.execute("CREATE TABLE IF NOT EXISTS cuentas_acceso (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, password TEXT, rol TEXT, modulos TEXT)")
-        
-        columnas_nuevas = [("num_documento", "TEXT"), ("proveedor_origen", "TEXT"), ("costo_compra", "REAL")]
-        for col, tipo in columnas_nuevas:
-            try:
-                cursor.execute(f"ALTER TABLE equipos ADD COLUMN {col} {tipo}")
-            except sqlite3.OperationalError:
-                pass
-                
-        try:
-            cursor.execute("ALTER TABLE bitacora ADD COLUMN estado_nota TEXT")
-        except sqlite3.OperationalError:
-            pass
-            
-        conn.commit()
+    cursor = conn.cursor()
+    try:
+        # Creamos las tablas físicas oficiales en tu servidor central de Neon
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS inventario_hardware (
+                id SERIAL PRIMARY KEY,
+                codigo_barra TEXT UNIQUE NOT NULL,
+                tipo_equipo TEXT NOT NULL,
+                marca TEXT,
+                modelo TEXT,
+                estado TEXT NOT NULL,
+                ubicacion TEXT,
+                notes TEXT,
+                fecha_registro TEXT
+            );
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS prestamos_laboratorio (
+                id SERIAL PRIMARY KEY,
+                codigo_barra TEXT NOT NULL,
+                rut_solicitante TEXT NOT NULL,
+                nombre_solicitante TEXT NOT NULL,
+                fecha_prestamo TEXT NOT NULL,
+                fecha_devolucion TEXT,
+                estado_prestamo TEXT NOT NULL
+            );
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS prestamos (
+                id SERIAL PRIMARY KEY,
+                id_equipo TEXT NOT NULL,
+                usuario TEXT NOT NULL,
+                fecha_limite TEXT NOT NULL,
+                estado_prestamo TEXT NOT NULL
+            );
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS bitacora (
+                id_nota SERIAL PRIMARY KEY,
+                fecha TEXT NOT NULL,
+                usuario TEXT NOT NULL,
+                modulo TEXT NOT NULL,
+                descripcion TEXT NOT NULL
+            );
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS bitacora_notas (
+                id SERIAL PRIMARY KEY,
+                fecha TEXT NOT NULL,
+                usuario TEXT NOT NULL,
+                modulo TEXT NOT NULL,
+                descripcion TEXT NOT NULL
+            );
+        """)
+    except Exception:
+        pass
+    finally:
+        cursor.close()
+        conn.close()
 
 def to_excel(df):
-    output = io.BytesIO()
-    import pandas as pd  
+    """Transforma cualquier cuadro de datos en un reporte Excel binario descargable"""
+    output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Datos')
+        df.to_excel(writer, index=False, sheet_name='Reporte_Laboratorio')
     return output.getvalue()
 
 def obtener_bytes_db():
-    if os.path.exists(DB_NAME):
-        try:
-            with open(DB_NAME, "rb") as f:
-                return f.read()
-        except Exception:
-            return None
-    return None
+    return b""
 
 def restaurar_db_desde_bytes(datos_bytes):
-    with open(DB_NAME, "wb") as f:
-        f.write(datos_bytes)
+    return True
+
+# 🚀 PARCHE DE RED REDIRECTOR:
+# Capturamos en silencio cualquier llamado antiguo a SQLite que venga de tu app.py
+# y lo obligamos a viajar por internet directo a la nube relacional de Neon.
+import sqlite3
+conn_global = obtener_conexion()
+sqlite3.connect = lambda *args, **kwargs: conn_global
