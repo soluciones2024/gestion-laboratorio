@@ -1,85 +1,102 @@
 import os
 import streamlit as st
-import psycopg2
+import sqlite3
 import pandas as pd
 from io import BytesIO
+import requests
+import base64
+
+DB_PATH = "laboratorio.db"
 
 # =====================================================================
-# 🚀 1. DESTRUCCIÓN ABSOLUTA DE CACHÉ EN CADA CLIC
+# ☁️ SINCRONIZADOR MAESTRO DE ARCHIVOS (GITHUB PERSISTENCE)
 # =====================================================================
-try:
-    st.cache_data.clear()
-except Exception:
-    pass
-
-def obtener_conexion():
-    """Abre la conexión con Neon y limpia automáticamente cualquier error del canal"""
+def descargar_base_datos():
+    """Descarga el archivo real .db desde tu repositorio al arrancar el servidor web"""
+    if os.path.exists(DB_PATH):
+        return True
     try:
-        conn = psycopg2.connect(st.secrets["base_datos"]["url"])
-        conn.autocommit = True  # Escribe físicamente en internet al instante
-        return conn
-    except Exception as e:
-        st.error(f"❌ Error de red: {str(e)}")
-        return None
+        # Apunta directo al archivo físico de tu repositorio master
+        url = "https://githubusercontent.com"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            with open(DB_PATH, "wb") as f:
+                f.write(response.content)
+            return True
+    except Exception:
+        pass
+    return False
+
+def respaldar_base_datos():
+    """Sube el archivo modificado a GitHub de forma transparente usando tu API Key"""
+    if not os.path.exists(DB_PATH):
+        return False
+    try:
+        # Configuración atómica de subida mediante la API de GitHub
+        token = st.secrets["github"]["token"]
+        url = "https://github.com"
+        headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
+        
+        # Conseguimos el identificador único del archivo viejo para poder sobreescribirlo
+        res_get = requests.get(url, headers=headers, timeout=5)
+        sha = res_get.json().get("sha") if res_get.status_code == 200 else None
+        
+        with open(DB_PATH, "rb") as f:
+            content = base64.b64encode(f.read()).decode("utf-8")
+            
+        data = {"message": "☁️ Sincronización Automática Escuela", "content": content, "branch": "master"}
+        if sha: data["sha"] = sha
+        
+        requests.put(url, headers=headers, json=data, timeout=15)
+        return True
+    except Exception:
+        return False
 
 # =====================================================================
-# 🚀 2. INTERCEPTOR ANTI-BLOQUEOS DEFINITIVO EN RED
+# ⚙️ FUNCIONES COMPATIBLES EXIGIDAS POR TU APP.PY
 # =====================================================================
-class CursorSeguro:
-    """Clase inteligente que captura fallas de sintaxis de tu app y limpia el canal en silencio"""
-    def __init__(self, cursor_real, conn_real):
-        self.cursor_real = cursor_real
-        self.conn_real = conn_real
-    def execute(self, sql, params=None):
-        try:
-            # Reemplaza automáticamente los marcadores viejos de SQLite (?) por los de Postgres (%s)
-            if isinstance(sql, str):
-                sql = sql.replace('?', '%s')
-            if params:
-                return self.cursor_real.execute(sql, params)
-            return self.cursor_real.execute(sql)
-        except Exception:
-            # 🛡️ EL ESCUDO: Si la consulta falla por una columna, ejecuta un ROLLBACK automático
-            # Esto desbloquea el canal al milisegundo evitando el error InFailedSqlTransaction
-            try: self.conn_real.rollback()
-            except Exception: pass
-    def __getattr__(self, name):
-        return getattr(self.cursor_real, name)
-
-class ConnectionSegura:
-    """Envoltura de conexión compatible con consultas de Pandas"""
-    def __init__(self, conn_real):
-        self.conn_real = conn_real
-    def cursor(self, *args, **kwargs):
-        return CursorSeguro(self.conn_real.cursor(*args, **kwargs), self.conn_real)
-    def rollback(self):
-        try: self.conn_real.rollback()
-        except Exception: pass
-    def commit(self):
-        try: self.conn_real.commit()
-        except Exception: pass
-    def __getattr__(self, name):
-        return getattr(self.conn_real, name)
+def obtener_conexion():
+    """Devuelve la conexión SQLite nativa que tu app ya sabe usar perfectamente"""
+    descargar_base_datos()
+    return sqlite3.connect(DB_PATH, check_same_thread=False)
 
 def inicializar_db():
-    """El inicializador silencioso de producción que no interrumpe el flujo"""
-    pass
+    """Inicializa la base de datos de forma local y asegura el autocommit de respaldo"""
+    conn = obtener_conexion()
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.commit()
+    conn.close()
 
-# Funciones de compatibilidad exigidas por tu app.py
 def to_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Reporte_Laboratorio')
     return output.getvalue()
 
-def obtener_bytes_db(): 
-    return b""
+def obtener_bytes_db():
+    try:
+        with open(DB_PATH, "rb") as f: return f.read()
+    except Exception: return b""
 
-def restaurar_db_desde_bytes(datos_bytes): 
-    return True
+def restaurar_db_desde_bytes(datos_bytes):
+    try:
+        with open(DB_PATH, "wb") as f: f.write(datos_bytes)
+        respaldar_base_datos()
+        return True
+    except Exception: return False
 
-# =====================================================================
-# 🚀 3. EL PARCHE MAESTRO GLOBAL INTERCEPTOR DE SQLITE
-# =====================================================================
-import sqlite3
-sqlite3.connect = lambda *args, **kwargs: ConnectionSegura(obtener_conexion())
+# 🚀 INTERCEPTOR FINAL DE PERSISTENCIA AUTOMÁTICA
+# Redefinimos la función connect para que descargue el archivo al inicio
+# y cada vez que tu app ejecute un guardado, suba el archivo modificado a GitHub
+class SQLiteSincronizado:
+    def __init__(self):
+        self.conn = obtener_conexion()
+    def commit(self):
+        self.conn.commit()
+        respaldar_base_datos() # ☁️ Guarda los datos en internet de forma automática en cada commit
+    def __getattr__(self, name):
+        return getattr(self.conn, name)
+
+sqlite3.connect = lambda *args, **kwargs: SQLiteSincronizado()
+# Ejecución de arranque automático
+inicializar_db()
