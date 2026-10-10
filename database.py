@@ -37,6 +37,8 @@ def inicializar_db():
         cursor.execute("CREATE TABLE IF NOT EXISTS equipos (id SERIAL PRIMARY KEY, estado TEXT NOT NULL, tipo TEXT NOT NULL, ubicacion TEXT NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, Microsoft_descripcion TEXT, descripcion TEXT);")
         cursor.execute("CREATE TABLE IF NOT EXISTS bitacora_notas (id SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT NOT NULL);")
+        # 📋 COPIA Y PEGA ESTA LÍNEA EXACTA EN TU ARCHIVO DE GITHUB:
+        cursor.execute("CREATE TABLE IF NOT EXISTS compras (id SERIAL PRIMARY KEY, cantidad INTEGER NOT NULL, costo_unitario NUMERIC NOT NULL);")
     except Exception: 
         pass
     finally:
