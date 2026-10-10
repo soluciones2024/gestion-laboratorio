@@ -12,8 +12,7 @@ try:
 except Exception:
     pass
 
-# 🔥 CLAVE DE LA VICTORIA: Guardamos las funciones originales de Pandas y SQLite
-# antes de modificarlas para evitar que el sistema se muerda la cola
+# Guardamos las funciones originales de Pandas y SQLite
 _pandas_read_sql_query_original = pd.read_sql_query
 _sqlite3_connect_original = sqlite3.connect
 
@@ -92,12 +91,10 @@ def obtener_bytes_db(): return b""
 def restaurar_db_desde_bytes(datos_bytes): return True
 
 # =====================================================================
-# 🚀 3. EL PARCHE INTERCEPTOR CENTRAL DE LECTURA (ANTI-VACÍO)
+# 🚀 3. EL PARCHE INTERCEPTOR CENTRAL DE LECTURA (AUTOCOMPLETADO DE COLUMNAS)
 # =====================================================================
-# Redirigimos el conector de SQLite tradicional
 sqlite3.connect = lambda *args, **kwargs: ConnectionSegura(obtener_conexion_neon())
 
-# Sobreescribimos la lectura de Pandas usando de forma interna la función limpia original
 def read_sql_query_override(sql, con, *args, **kwargs):
     conn_real = obtener_conexion_neon()
     if conn_real is None:
@@ -105,14 +102,22 @@ def read_sql_query_override(sql, con, *args, **kwargs):
     if isinstance(sql, str):
         sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
     try:
-        # 🛡️ LLAMAMOS A LA FUNCIÓN ORIGINAL SALVADA PARA EVITAR EL BUCLE INFINITO
-        return _pandas_read_sql_query_original(sql, conn_real, *args, **kwargs)
+        df = _pandas_read_sql_query_original(sql, conn_real, *args, **kwargs)
+        
+        # 🛡️ EL ESCUDO INTELECTUAL: Si la tabla de internet está vacía, le inyectamos 
+        # las columnas obligatorias para que los filtros de app.py pasen de largo sin KeyError
+        columnas_obligatorias = ['id_prestamo', 'id_equipo', 'codigo_barra', 'estado', 'observaciones', 'nombre_usuario']
+        for col in columnas_obligatorias:
+            if col not in df.columns:
+                df[col] = None
+        return df
     except Exception:
-        return pd.DataFrame()
+        # En caso de fallo crítico estructural, devolvemos un cuadro con la columna para salvar el inicio
+        return pd.DataFrame(columns=['id_prestamo', 'id_equipo', 'codigo_barra', 'estado', 'observaciones', 'nombre_usuario'])
     finally:
-        conn_real.close()
+        try: conn_real.close()
+        except Exception: pass
 
-# Inyectamos de forma segura en la librería de Pandas
 pd.read_sql_query = read_sql_query_override
 pd.read_sql = read_sql_query_override
 
