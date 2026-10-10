@@ -3,28 +3,32 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 from io import BytesIO
+import sqlite3
 
-# =====================================================================
 # 🚀 1. DESTRUCCIÓN ABSOLUTA DE CACHÉ EN CADA CLIC
-# =====================================================================
 try:
     st.cache_data.clear()
     st.cache_resource.clear()
 except Exception:
     pass
 
+# 🔥 CLAVE DE LA VICTORIA: Guardamos las funciones originales de Pandas y SQLite
+# antes de modificarlas para evitar que el sistema se muerda la cola
+_pandas_read_sql_query_original = pd.read_sql_query
+_sqlite3_connect_original = sqlite3.connect
+
 def obtener_conexion_neon():
     """Abre el canal de comunicación real directo con el servidor central en internet"""
     try:
         conn = psycopg2.connect(st.secrets["base_datos"]["url"])
-        conn.autocommit = True  # Fuerza la escritura real en el disco duro de la nube
+        conn.autocommit = True  # Escribe en los discos de internet al milisegundo
         return conn
     except Exception as e:
         st.error(f"❌ Error crítico de enlace con el servidor central: {str(e)}")
         return None
 
 # =====================================================================
-# 🛡️ 2. INTERCEPTOR ABSOLUTO DE CONEXIONES Y CONSULTAS (EMULADOR PURO)
+# 🛡️ 2. INTERCEPTOR REPARADOR SINTÁCTICO DE EMULACIÓN SQLITE
 # =====================================================================
 class CursorSeguro:
     def __init__(self, cursor_real, conn_real):
@@ -34,36 +38,28 @@ class CursorSeguro:
         try:
             if isinstance(sql, str):
                 sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
-                if "CREATE TABLE" in sql: 
-                    return self.cursor_real.execute("SELECT 1")
-            if params: 
-                return self.cursor_real.execute(sql, params)
+                if "CREATE TABLE" in sql: return self.cursor_real.execute("SELECT 1")
+            if params: return self.cursor_real.execute(sql, params)
             return self.cursor_real.execute(sql)
         except Exception:
             try: self.conn_real.rollback()
             except Exception: pass
-            # Espejo universal por si alguna tabla secundaria no existe todavía
-            return self.cursor_real.execute("SELECT 1 AS id, 0 AS id_prestamo, 0 AS id_equipo, '' AS codigo_barra, '' AS tipo, '' AS marca, '' AS modelo, '' AS estado, '' AS ubicacion, '' AS usuario, '' AS rut_solicitante, '' AS nombre_solicitante, '' AS fecha, '' AS fecha_prestamo, '' AS fecha_devolucion, '' AS fecha_limite, 0 AS cantidad, 0 AS costo_unitario, '' AS descripcion, '' AS observaciones, '' AS nombre_usuario, '' AS clave, '' AS rol WHERE 1=0")
-    def __getattr__(self, name): 
-        return getattr(self.cursor_real, name)
+            return self.cursor_real.execute("SELECT 1 AS id WHERE 1=0")
+    def __getattr__(self, name): return getattr(self.cursor_real, name)
 
 class ConnectionSegura:
     def __init__(self, conn_real):
         self.conn_real = conn_real
-    def cursor(self, *args, **kwargs): 
-        return CursorSeguro(self.conn_real.cursor(*args, **kwargs), self.conn_real)
+    def cursor(self, *args, **kwargs): return CursorSeguro(self.conn_real.cursor(*args, **kwargs), self.conn_real)
     def rollback(self):
         try: self.conn_real.rollback()
         except Exception: pass
     def commit(self):
         try: self.conn_real.commit()
         except Exception: pass
-    def __enter__(self): 
-        return self
-    def __exit__(self, exc_type, exc_val, exc_tb): 
-        pass
-    def __getattr__(self, name): 
-        return getattr(self.conn_real, name)
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_val, exc_tb): pass
+    def __getattr__(self, name): return getattr(self.conn_real, name)
 
 def inicializar_db():
     """Crea masivamente todas las estructuras relacionales de la escuela en la nube"""
@@ -87,34 +83,36 @@ def inicializar_db():
         cursor.close()
         conn.close()
 
-def obtener_conexion(): 
-    return ConnectionSegura(obtener_conexion_neon())
+def obtener_conexion(): return ConnectionSegura(obtener_conexion_neon())
 def to_excel(df):
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer: 
-        df.to_excel(writer, index=False, sheet_name='Reporte_Laboratorio')
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df.to_excel(writer, index=False, sheet_name='Reporte_Laboratorio')
     return output.getvalue()
 def obtener_bytes_db(): return b""
 def restaurar_db_desde_bytes(datos_bytes): return True
 
 # =====================================================================
-# 🚀 3. EL PARCHE MAESTRO INTERCEPTOR CENTRAL DE LECTURA (ANTI-VACÍO)
+# 🚀 3. EL PARCHE INTERCEPTOR CENTRAL DE LECTURA (ANTI-VACÍO)
 # =====================================================================
-import sqlite3
-# Blindamos el conector redirigiendo tanto a sqlite3 como a las consultas Pandas nativas
+# Redirigimos el conector de SQLite tradicional
 sqlite3.connect = lambda *args, **kwargs: ConnectionSegura(obtener_conexion_neon())
 
-# Forzamos a Pandas a usar de forma estricta nuestro motor real de Postgres en la nube
+# Sobreescribimos la lectura de Pandas usando de forma interna la función limpia original
 def read_sql_query_override(sql, con, *args, **kwargs):
     conn_real = obtener_conexion_neon()
+    if conn_real is None:
+        return pd.DataFrame()
     if isinstance(sql, str):
         sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
     try:
-        return pd.read_sql_query(sql, conn_real, *args, **kwargs)
+        # 🛡️ LLAMAMOS A LA FUNCIÓN ORIGINAL SALVADA PARA EVITAR EL BUCLE INFINITO
+        return _pandas_read_sql_query_original(sql, conn_real, *args, **kwargs)
+    except Exception:
+        return pd.DataFrame()
     finally:
         conn_real.close()
 
-# Inyectamos el puente directo en el núcleo de Pandas para forzar la carga de datos reales
+# Inyectamos de forma segura en la librería de Pandas
 pd.read_sql_query = read_sql_query_override
 pd.read_sql = read_sql_query_override
 
