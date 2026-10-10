@@ -12,12 +12,11 @@ DB_PATH = "laboratorio.db"
 _sqlite3_connect_original = sqlite3.connect
 
 def descargar_base_datos():
-    """Descarga tu base de datos real con todos tus datos históricos al arrancar el servidor web"""
+    """Descarga tu base de datos real desde tu repositorio master en GitHub"""
     if os.path.exists(DB_PATH):
-        try: os.remove(DB_PATH) # Limpia cualquier residuo viejo del inicio
+        try: os.remove(DB_PATH)
         except: pass
     try:
-        # Descarga directa en texto binario desde tu repositorio master en GitHub
         url = "https://githubusercontent.com"
         response = requests.get(url, timeout=12)
         if response.status_code == 200:
@@ -40,7 +39,6 @@ def respaldar_base_datos():
             "Accept": "application/vnd.github.v3+json"
         }
         
-        # Obtenemos el identificador único del archivo en la nube para poder sobreescribirlo
         res_get = requests.get(url, headers=headers, timeout=5)
         sha = res_get.json().get("sha") if res_get.status_code == 200 else None
         
@@ -52,8 +50,7 @@ def respaldar_base_datos():
             "content": content,
             "branch": "master"
         }
-        if sha: 
-            data["sha"] = sha
+        if sha: data["sha"] = sha
             
         requests.put(url, headers=headers, json=data, timeout=15)
         return True
@@ -68,8 +65,30 @@ def obtener_conexion():
     return _sqlite3_connect_original(DB_PATH, check_same_thread=False)
 
 def inicializar_db():
-    """Asegura la descarga inicial del archivo histórico en el arranque"""
+    """Asegura la descarga inicial y repara de forma automática cualquier tabla faltante"""
     descargar_base_datos()
+    
+    # 🛡️ CONSTRUCTOR DE TABLAS AUTOMÁTICO DE SEGURIDAD
+    # Si el archivo .db descargado de GitHub no posee las tablas, las crea al instante
+    conn = _sqlite3_connect_original(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("CREATE TABLE IF NOT EXISTS inventario_hardware (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo_barra TEXT UNIQUE NOT NULL, tipo_equipo TEXT NOT NULL, marca TEXT, modelo TEXT, estado TEXT NOT NULL, ubicacion TEXT, notes TEXT, fecha_registro TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos_laboratorio (id INTEGER PRIMARY KEY AUTOINCREMENT, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT NOT NULL, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT NOT NULL);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS bitacora_notas (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT NOT NULL);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos (id INTEGER PRIMARY KEY AUTOINCREMENT, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, usuario TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT, observaciones TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS equipos (id INTEGER PRIMARY KEY AUTOINCREMENT, id_equipo INTEGER, codigo_barra TEXT, tipo TEXT, tipo_equipo TEXT, marca TEXT, modelo TEXT, estado TEXT, ubicacion TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS compras (id INTEGER PRIMARY KEY AUTOINCREMENT, cantidad INTEGER NOT NULL, costo_unitario NUMERIC NOT NULL);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS salas (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre_sala TEXT UNIQUE NOT NULL, estado TEXT NOT NULL);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre_usuario TEXT UNIQUE NOT NULL, clave TEXT NOT NULL, rol TEXT NOT NULL, correo TEXT, nombre TEXT, fecha_creacion TEXT, usuario_creador TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS cuentas_secundarias (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre_usuario TEXT UNIQUE NOT NULL, clave TEXT NOT NULL, rol TEXT NOT NULL, correo TEXT, nombre TEXT, fecha_creacion TEXT, usuario_creador TEXT);")
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        cursor.close()
+        conn.close()
 
 def to_excel(df):
     output = BytesIO()
@@ -90,20 +109,19 @@ def restaurar_db_desde_bytes(datos_bytes):
     except Exception: return False
 
 # =====================================================================
-# 🚀 INTERCEPTOR DE GUARDADO AUTOMÁTICO (EMULADOR SIN MORDERSE LA COLA)
+# 🚀 INTERCEPTOR DE GUARDADO AUTOMÁTICO
 # =====================================================================
 class SQLiteSincronizado:
     def __init__(self, conn_real):
         self.conn_real = conn_real
     def commit(self):
         self.conn_real.commit()
-        respaldar_base_datos() # 🔥 GRABADO INDESTRUCTIBLE: Sube el archivo modificado a GitHub en cada commit
+        respaldar_base_datos()  # Sube el archivo modificado a GitHub en cada commit
     def __enter__(self): return self
     def __exit__(self, exc_type, exc_val, exc_tb): self.conn_real.close()
     def __getattr__(self, name): return getattr(self.conn_real, name)
 
-# Redirección atómica en el motor de Python
 sqlite3.connect = lambda *args, **kwargs: SQLiteSincronizado(_sqlite3_connect_original(DB_PATH, check_same_thread=False))
 
-# Descarga el archivo con tus datos apenas se enciende internet
+# Ejecución automática al arranque
 inicializar_db()
