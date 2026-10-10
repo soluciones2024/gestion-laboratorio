@@ -4,18 +4,21 @@ import psycopg2
 import pandas as pd
 from io import BytesIO
 
+# 🚀 DESTRUCCIÓN AUTOMÁTICA DE CACHÉ INTERNA
 try: st.cache_data.clear()
 except Exception: pass
 
 def obtener_conexion_neon():
+    """Abre el canal de comunicación real directo con el servidor central en internet"""
     try:
         conn = psycopg2.connect(st.secrets["base_datos"]["url"])
-        conn.autocommit = True
+        conn.autocommit = True  # Escribe en los discos de internet al milisegundo
         return conn
     except Exception as e:
-        st.error(f"❌ Error crítico de enlace: {str(e)}")
+        st.error(f"❌ Error crítico de enlace con el servidor central: {str(e)}")
         return None
 
+# 🛡️ INTERCEPTOR TRADUCTOR MAESTRO DE SENTENCIAS SQLITE -> POSTGRESQL (LIMPIEZA DE COMILLAS)
 class CursorSeguro:
     def __init__(self, cursor_real, conn_real):
         self.cursor_real = cursor_real
@@ -23,7 +26,11 @@ class CursorSeguro:
     def execute(self, sql, params=None):
         try:
             if isinstance(sql, str):
+                # 1. Traduce marcadores SQLite (?) a Postgres (%s)
                 sql = sql.replace('?', '%s')
+                # 2. 🔥 LIMPIEZA ATÓMICA DE COMILLAS: Elimina comillas dobles que bloquean las lecturas en Postgres
+                sql = sql.replace('"', '').replace('`', '')
+                # 3. Ignora órdenes de creación locales redundantes
                 if "CREATE TABLE" in sql: return self.cursor_real.execute("SELECT 1")
             if params: return self.cursor_real.execute(sql, params)
             return self.cursor_real.execute(sql)
@@ -31,7 +38,7 @@ class CursorSeguro:
             try: self.conn_real.rollback()
             except Exception: pass
             
-            # ESPEJO UNIVERSAL BLINDADO ANTI-KEYERROR (INCLUYE ABSOLUTAMENTE TODAS LAS COLUMNAS DEL PROYECTO)
+            # ESPEJO UNIVERSAL BLINDADO ANTI-KEYERROR POR SI ALGO FALLA INTERNAMENTE
             query_segura = """
                 SELECT 
                     1 AS id, 0 AS id_prestamo, 0 AS id_equipo, 0 AS id_nota, '' AS codigo_barra, 
@@ -66,7 +73,6 @@ def inicializar_db():
     if conn is None: return
     cursor = conn.cursor()
     try:
-        # Creación en la nube de todas las tablas nativas de tu sistema de la escuela
         cursor.execute("CREATE TABLE IF NOT EXISTS inventario_hardware (id SERIAL PRIMARY KEY, codigo_barra TEXT UNIQUE NOT NULL, tipo_equipo TEXT NOT NULL, marca TEXT, modelo TEXT, estado TEXT NOT NULL, ubicacion TEXT, notes TEXT, fecha_registro TEXT);")
         cursor.execute("CREATE TABLE IF NOT EXISTS prestamos_laboratorio (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT NOT NULL, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS bitacora_notas (id SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT NOT NULL);")
@@ -75,9 +81,8 @@ def inicializar_db():
         cursor.execute("CREATE TABLE IF NOT EXISTS compras (id SERIAL PRIMARY KEY, cantidad INTEGER NOT NULL, costo_unitario NUMERIC NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS salas (id SERIAL PRIMARY KEY, nombre_sala TEXT UNIQUE NOT NULL, estado TEXT NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT);")
-        
-        # 🚀 LA TABLA QUE FALTABA: Cuentas secundarias de profesores con su set de columnas oficial
         cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (id SERIAL PRIMARY KEY, nombre_usuario TEXT UNIQUE NOT NULL, clave TEXT NOT NULL, rol TEXT NOT NULL, correo TEXT, nombre TEXT, fecha_creacion TEXT, usuario_creador TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS accounts (id SERIAL PRIMARY KEY, nombre_usuario TEXT UNIQUE NOT NULL, clave TEXT NOT NULL, rol TEXT NOT NULL, correo TEXT, nombre TEXT, fecha_creacion TEXT, usuario_creador TEXT);")
         cursor.execute("CREATE TABLE IF NOT EXISTS cuentas_secundarias (id SERIAL PRIMARY KEY, nombre_usuario TEXT UNIQUE NOT NULL, clave TEXT NOT NULL, rol TEXT NOT NULL, correo TEXT, nombre TEXT, fecha_creacion TEXT, usuario_creador TEXT);")
     except Exception: pass
     finally:
@@ -92,6 +97,7 @@ def to_excel(df):
 def obtener_bytes_db(): return b""
 def restaurar_db_desde_bytes(datos_bytes): return True
 
+# 🚀 EL PARCHE MAESTRO INTERCEPTOR GLOBAL DE PYTHON
 import sqlite3
 sqlite3.connect = lambda *args, **kwargs: ConnectionSegura(obtener_conexion_neon())
 inicializar_db()
