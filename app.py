@@ -501,7 +501,8 @@ with obtener_conexion() as conn:
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS bitacora (
-            id_nota INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_nota SERIAL PRIMARY KEY,
+            #id_nota INTEGER PRIMARY KEY AUTOINCREMENT,
             nota TEXT,
             fecha TEXT,
             hora TEXT,
