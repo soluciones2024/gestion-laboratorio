@@ -86,6 +86,7 @@ def inicializar_db():
                 descripcion TEXT NOT NULL
             );
         """)
+         cursor.execute("CREATE TABLE IF NOT EXISTS equipos (id SERIAL PRIMARY KEY, estado TEXT NOT NULL, tipo TEXT NOT NULL, ubicacion TEXT NOT NULL);")
     except Exception:
         pass
     finally:
