@@ -742,10 +742,10 @@ if choice == "Panel de Control":
 
     with obtener_conexion() as conn:
         df_mora_eq_popup = pd.read_sql_query("""
-            SELECT id_equipo, usuario, fecha_limite 
-            FROM prestamos 
-            WHERE estado_prestamo = 'Activo' AND fecha_limite < ?
-        """, conn, params=(hoy_str,))
+        SELECT id_equipo, usuario, fecha_limite
+        FROM prestamos
+        WHERE estado_prestamo = 'Activo' AND fecha_limite < %s
+    """, conn, params=(hoy_str,))
         
         try:
             df_mora_bit_popup = pd.read_sql_query("""
