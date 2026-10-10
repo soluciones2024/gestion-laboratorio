@@ -499,19 +499,19 @@ with obtener_conexion() as conn:
             estado TEXT
         )
     """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS bitacora (
-            id_nota SERIAL PRIMARY KEY,
-            #id_nota INTEGER PRIMARY KEY AUTOINCREMENT,
-            nota TEXT,
-            fecha TEXT,
-            hora TEXT,
-            estado_nota TEXT DEFAULT 'Pendiente',
-            fecha_ejecucion TEXT DEFAULT 'N/A',
-            fecha_vencimiento TEXT DEFAULT 'N/A'
-        )
-    """)
-    conn.commit()
+    #cursor.execute("""
+    #   CREATE TABLE IF NOT EXISTS bitacora (
+    #      id_nota SERIAL PRIMARY KEY,
+    #     #id_nota INTEGER PRIMARY KEY AUTOINCREMENT,
+    #        nota TEXT,
+    #       fecha TEXT,
+    #      hora TEXT,
+    #     estado_nota TEXT DEFAULT 'Pendiente',
+    #    fecha_ejecucion TEXT DEFAULT 'N/A',
+    #    fecha_vencimiento TEXT DEFAULT 'N/A'
+    #    )
+    #    """)
+    #    conn.commit()
 
 ################
 # --- FUNCIÓN A: DESPACHO AUTOMÁTICO DE EQUIPOS EN MORA ---
