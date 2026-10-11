@@ -1,115 +1,58 @@
-import os
-import streamlit as st
 import sqlite3
-import pandas as pd
-from io import BytesIO
-import requests
-import base64
-import time
+import streamlit as st  
+import io
+import os
 
-DB_PATH = "laboratorio.db"
+DB_NAME = "laboratorio.db"
 
-# 🛡️ CLAVE DE LA VICTORIA: Guardamos la función de conexión original de Python
-# antes de hacer cualquier cambio para evitar que se muerda la cola
-_sqlite3_connect_original = sqlite3.connect
-
-def descargar_base_datos_fija():
-    """Descarga tu archivo real .db con todos tus datos históricos desde GitHub al arrancar"""
-    try:
-        url = "https://githubusercontent.com"
-        response = requests.get(url, timeout=12)
-        if response.status_code != 200:
-            url = "https://githubusercontent.com"
-            response = requests.get(url, timeout=12)
-        if response.status_code == 200:
-            with open(DB_PATH, "wb") as f:
-                f.write(response.content)
-            return True
-    except Exception:
-        pass
-    return False
-
-def respaldar_base_datos_fija():
-    """Sube tu archivo .db modificado directamente a GitHub de forma transparente e inmune"""
-    if not os.path.exists(DB_PATH):
-        return False
-    try:
-        token = st.secrets["github"]["token"].strip()
-        branch_actual = "master"
-        url = f"https://github.com{branch_actual}"
-        headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
-        
-        res_get = requests.get(url, headers=headers, timeout=5)
-        if res_get.status_code != 200:
-            branch_actual = "main"
-            url = f"https://github.com{branch_actual}"
-            res_get = requests.get(url, headers=headers, timeout=5)
-            
-        sha = res_get.json().get("sha") if res_get.status_code == 200 else None
-        
-        with open(DB_PATH, "rb") as f:
-            content = base64.b64encode(f.read()).decode("utf-8")
-            
-        url_put = "https://github.com"
-        data = {
-            "message": f"☁️ Sincronización Escuela - {int(time.time())}",
-            "content": content,
-            "branch": branch_actual
-        }
-        if sha: data["sha"] = sha
-            
-        requests.put(url_put, headers=headers, json=data, timeout=15)
-        return True
-    except Exception:
-        return False
-
-# =====================================================================
-# ⚙️ FUNCIONES DE INTERFAZ EXIGIDAS POR TU APP.PY
-# =====================================================================
 def obtener_conexion():
-    """Devuelve la conexión SQLite nativa rápida utilizando la función original salvada"""
-    if not os.path.exists(DB_PATH):
-        descargar_base_datos_fija()
-    return _sqlite3_connect_original(DB_PATH, check_same_thread=False)
+    """Retorna una conexión limpia a la base de datos."""
+    return sqlite3.connect(DB_NAME, check_same_thread=False)
 
 def inicializar_db():
-    """Asegura la descarga inicial del archivo histórico en el arranque sin duplicar elementos"""
-    descargar_base_datos_fija()
+    with obtener_conexion() as conn:
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS equipos (id_equipo TEXT PRIMARY KEY, tipo TEXT, marca TEXT, modelo TEXT, estado TEXT, ubicacion TEXT, fecha_cambio TEXT, num_documento TEXT, proveedor_origen TEXT, costo_compra REAL)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS compras (id_compra INTEGER PRIMARY KEY AUTOINCREMENT, item TEXT, cantidad INTEGER, costo_unitario REAL, proveedor TEXT, fecha TEXT)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos (id_prestamo INTEGER PRIMARY KEY AUTOINCREMENT, id_equipo TEXT, usuario TEXT, rut TEXT, fecha_prestamo TEXT, fecha_limite TEXT, fecha_devolucion TEXT, estado_prestamo TEXT, observaciones TEXT)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS infraestructura (id_item INTEGER PRIMARY KEY AUTOINCREMENT, elemento TEXT, ubicacion TEXT, estado TEXT, observaciones TEXT)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (rut TEXT PRIMARY KEY, nombre TEXT, correo TEXT, tipo_usuario TEXT)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota INTEGER PRIMARY KEY AUTOINCREMENT, nota TEXT, fecha TEXT, hora TEXT, estado_nota TEXT)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS salas (id_sala INTEGER PRIMARY KEY AUTOINCREMENT, nombre_sala TEXT UNIQUE, encargado TEXT, capacidad INTEGER)")
+        
+        # LÍNEA INYECTADA: Crea de forma automatizada la tabla para el mantenedor de cuentas
+        cursor.execute("CREATE TABLE IF NOT EXISTS cuentas_acceso (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, password TEXT, rol TEXT, modulos TEXT)")
+        
+        columnas_nuevas = [("num_documento", "TEXT"), ("proveedor_origen", "TEXT"), ("costo_compra", "REAL")]
+        for col, tipo in columnas_nuevas:
+            try:
+                cursor.execute(f"ALTER TABLE equipos ADD COLUMN {col} {tipo}")
+            except sqlite3.OperationalError:
+                pass
+                
+        try:
+            cursor.execute("ALTER TABLE bitacora ADD COLUMN estado_nota TEXT")
+        except sqlite3.OperationalError:
+            pass
+            
+        conn.commit()
 
 def to_excel(df):
-    output = BytesIO()
+    output = io.BytesIO()
+    import pandas as pd  
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Reporte_Laboratorio')
+        df.to_excel(writer, index=False, sheet_name='Datos')
     return output.getvalue()
 
 def obtener_bytes_db():
-    try:
-        with open(DB_PATH, "rb") as f: return f.read()
-    except Exception: return b""
+    if os.path.exists(DB_NAME):
+        try:
+            with open(DB_NAME, "rb") as f:
+                return f.read()
+        except Exception:
+            return None
+    return None
 
 def restaurar_db_desde_bytes(datos_bytes):
-    try:
-        with open(DB_PATH, "wb") as f: f.write(datos_bytes)
-        respaldar_base_datos_fija()
-        return True
-    except Exception: return False
-
-# =====================================================================
-# 🚀 INTERCEPTOR AISLADO DE GUARDADO AUTOMÁTICO INMUNE
-# =====================================================================
-class ConnectionSincronizada:
-    def __init__(self, conn_real):
-        self.conn_real = conn_real
-    def commit(self):
-        self.conn_real.commit()
-        # El respaldo se ejecuta de forma externa y aislada de los hilos de Pandas
-        respaldar_base_datos_fija()
-    def __enter__(self): return self
-    def __exit__(self, exc_type, exc_val, exc_tb): self.conn_real.close()
-    def __getattr__(self, name): return getattr(self.conn_real, name)
-
-# Sobreescribimos el motor de conexión de Python apuntando a la función limpia original
-sqlite3.connect = lambda *args, **kwargs: ConnectionSincronizada(_sqlite3_connect_original(DB_PATH, check_same_thread=False))
-
-# Ejecución automática al arranque
-inicializar_db()
+    with open(DB_NAME, "wb") as f:
+        f.write(datos_bytes)
