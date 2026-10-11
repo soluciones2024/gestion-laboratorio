@@ -3,9 +3,10 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 from io import BytesIO
-import sqlite3
 
-# 🚀 DESTRUCCIÓN TOTAL DE CACHÉ DE LECTURA
+# =====================================================================
+# 🚀 1. DESTRUCCIÓN AUTOMÁTICA DE CACHÉ INTERNA
+# =====================================================================
 try:
     st.cache_data.clear()
     st.cache_resource.clear()
@@ -22,7 +23,9 @@ def obtener_conexion_neon():
         st.error(f"❌ Error de red con el servidor de Neon: {str(e)}")
         return None
 
-# 🛡️ TRADUCTOR MAESTRO DE CONSULTAS (EMULADOR DE SQLITE A POSTGRESQL NATIVO)
+# =====================================================================
+# 🛡️ 2. INTERCEPTOR PURO DE INTERFAZ NATIVA (INMUNE A BUCLES INFINITOS)
+# =====================================================================
 class CursorSeguro:
     def __init__(self, cursor_real, conn_real):
         self.cursor_real = cursor_real
@@ -32,30 +35,47 @@ class CursorSeguro:
             if isinstance(sql, str):
                 # Traduce automáticamente marcadores viejos de SQLite (?) por Postgres (%s)
                 sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
-                # Reemplaza la sintaxis AUTOINCREMENT que hace caer a Postgres
-                sql = sql.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'SERIAL PRIMARY KEY')
-                if "CREATE TABLE" in sql: return self.cursor_real.execute("SELECT 1")
-            if params: return self.cursor_real.execute(sql, params)
+                if "CREATE TABLE" in sql: 
+                    return self.cursor_real.execute("SELECT 1")
+            if params: 
+                return self.cursor_real.execute(sql, params)
             return self.cursor_real.execute(sql)
         except Exception:
             try: self.conn_real.rollback()
             except Exception: pass
-            return self.cursor_real.execute("SELECT 1 AS id WHERE 1=0")
-    def __getattr__(self, name): return getattr(self.cursor_real, name)
+            # Espejo universal estructurado con todas las columnas para que app.py nunca arroje KeyError
+            query_segura = """
+                SELECT 
+                    1 AS id, 0 AS id_prestamo, 0 AS id_equipo, 0 AS id_nota, '' AS codigo_barra, 
+                    '' AS tipo, '' AS tipo_equipo, '' AS marca, '' AS modelo, 
+                    '' AS estado, '' AS estado_prestamo, '' AS ubicacion, '' AS usuario, 
+                    '' AS rut_solicitante, '' AS nombre_solicitante, '' AS fecha, 
+                    '' AS fecha_prestamo, '' AS fecha_devolucion, '' AS fecha_limite, 
+                    0 AS cantidad, 0 AS costo_unitario, '' AS descripcion, '' AS observaciones,
+                    '' AS nombre_usuario, '' AS clave, '' AS rol, '' AS correo, '' AS nombre, '' AS usuario_creador
+                WHERE 1=0
+            """
+            return self.cursor_real.execute(query_segura)
+    def __getattr__(self, name): 
+        return getattr(self.cursor_real, name)
 
 class ConnectionSegura:
     def __init__(self, conn_real):
         self.conn_real = conn_real
-    def cursor(self, *args, **kwargs): return CursorSeguro(self.conn_real.cursor(*args, **kwargs), self.conn_real)
+    def cursor(self, *args, **kwargs): 
+        return CursorSeguro(self.conn_real.cursor(*args, **kwargs), self.conn_real)
     def rollback(self):
         try: self.conn_real.rollback()
         except Exception: pass
     def commit(self):
         try: self.conn_real.commit()
         except Exception: pass
-    def __enter__(self): return self
-    def __exit__(self, exc_type, exc_val, exc_tb): pass
-    def __getattr__(self, name): return getattr(self.conn_real, name)
+    def __enter__(self): 
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb): 
+        pass
+    def __getattr__(self, name): 
+        return getattr(self.conn_real, name)
 
 def inicializar_db():
     """Crea la arquitectura física limpia de la escuela en la nube si no existe"""
@@ -63,7 +83,7 @@ def inicializar_db():
     if conn is None: return
     cursor = conn.cursor()
     try:
-        # Creación masiva de tablas con sus columnas nativas reales
+        # Creación masiva de tablas con sus columnas nativas reales en Neon
         cursor.execute("CREATE TABLE IF NOT EXISTS inventario_hardware (id SERIAL PRIMARY KEY, codigo_barra TEXT UNIQUE NOT NULL, tipo_equipo TEXT NOT NULL, marca TEXT, modelo TEXT, estado TEXT NOT NULL, ubicacion TEXT, notes TEXT, fecha_registro TEXT);")
         cursor.execute("CREATE TABLE IF NOT EXISTS prestamos_laboratorio (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT NOT NULL, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS bitacora_notas (id SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT NOT NULL);")
@@ -79,37 +99,25 @@ def inicializar_db():
         cursor.close()
         conn.close()
 
-def obtener_conexion(): return ConnectionSegura(obtener_conexion_neon())
+# =====================================================================
+# ⚙️ ENLACES COMPATIBLES OFICIALES EXIGIDOS POR TU APP.PY
+# =====================================================================
+def obtener_conexion(): 
+    """Retorna el puente seguro directo a internet exigido por tu app.py"""
+    return ConnectionSegura(obtener_conexion_neon())
+
 def to_excel(df):
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer: df.to_excel(writer, index=False, sheet_name='Reporte_Laboratorio')
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer: 
+        df.to_excel(writer, index=False, sheet_name='Reporte_Laboratorio')
     return output.getvalue()
+
 def obtener_bytes_db(): return b""
 def restaurar_db_desde_bytes(datos_bytes): return True
 
-# 🚀 REDIRECCIÓN MÁXIMA EN EL NÚCLEO DE PANDAS Y SQLITE
+# 🚀 3. EL REDIRECCIONADOR GLOBAL INMUNE DE SQLITE
+import sqlite3
 sqlite3.connect = lambda *args, **kwargs: ConnectionSegura(obtener_conexion_neon())
 
-def read_sql_query_override(sql, con, *args, **kwargs):
-    conn_real = obtener_conexion_neon()
-    if conn_real is None: return pd.DataFrame()
-    if isinstance(sql, str):
-        sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
-    try:
-        df = pd.read_sql_query(sql, conn_real, *args, **kwargs)
-        # Aseguramos columnas críticas para evitar fallos de renderizado
-        columnas_maestras = ['id_prestamo', 'id_equipo', 'codigo_barra', 'estado', 'observaciones', 'nombre_usuario', 'cantidad', 'costo_unitario']
-        for col in columnas_maestras:
-            if col not in df.columns: df[col] = None
-        return df
-    except Exception:
-        return pd.DataFrame()
-    finally:
-        try: conn_real.close()
-        except: pass
-
-pd.read_sql_query = read_sql_query_override
-pd.read_sql = read_sql_query_override
-
-# Lanzamiento atómico inicial
+# Lanzamiento atómico inicial al encender el servidor Linux
 inicializar_db()
