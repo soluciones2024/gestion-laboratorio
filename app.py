@@ -26,31 +26,18 @@ try:
 except Exception:
     pass
 
-try:
-    # Conexión directa y atómica en red hacia internet
-    db_url = st.secrets["base_datos"]["url"]
-    conn_real_neon = psycopg2.connect(db_url)
-    conn_real_neon.autocommit = True  # Fuerza el grabado real en la nube al instante
-    cursor_neon = conn_real_neon.cursor()
-    
-    # Construcción automática de la arquitectura relacional en Neon
-    cursor_neon.execute("CREATE TABLE IF NOT EXISTS inventario_hardware (id SERIAL PRIMARY KEY, codigo_barra TEXT UNIQUE NOT NULL, tipo_equipo TEXT NOT NULL, marca TEXT, modelo TEXT, estado TEXT NOT NULL, ubicacion TEXT, notes TEXT, fecha_registro TEXT);")
-    cursor_neon.execute("CREATE TABLE IF NOT EXISTS prestamos_laboratorio (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT NOT NULL, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT NOT NULL);")
-    cursor_neon.execute("CREATE TABLE IF NOT EXISTS bitacora_notas (id SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT NOT NULL);")
-    cursor_neon.execute("CREATE TABLE IF NOT EXISTS prestamos (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, usuario TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT, observaciones TEXT);")
-    cursor_neon.execute("CREATE TABLE IF NOT EXISTS equipos (id SERIAL PRIMARY KEY, id_equipo INTEGER, codigo_barra TEXT, tipo TEXT, tipo_equipo TEXT, marca TEXT, modelo TEXT, estado TEXT, ubicacion TEXT);")
-    cursor_neon.execute("CREATE TABLE IF NOT EXISTS compras (id SERIAL PRIMARY KEY, cantidad INTEGER NOT NULL, costo_unitario NUMERIC NOT NULL);")
-    cursor_neon.execute("CREATE TABLE IF NOT EXISTS salas (id SERIAL PRIMARY KEY, nombre_sala TEXT UNIQUE NOT NULL, estado TEXT NOT NULL);")
-    cursor_neon.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT);")
-    cursor_neon.execute("CREATE TABLE IF NOT EXISTS usuarios (id SERIAL PRIMARY KEY, nombre_usuario TEXT UNIQUE NOT NULL, clave TEXT NOT NULL, rol TEXT NOT NULL, correo TEXT, nombre TEXT, fecha_creacion TEXT, usuario_creador TEXT, tipo_usuario TEXT, rut TEXT);")
-    cursor_neon.execute("CREATE TABLE IF NOT EXISTS cuentas_acceso (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE, password TEXT, rol TEXT, modulos TEXT);")
-    cursor_neon.close()
-except Exception as e:
-    st.error(f"❌ Error crítico de enlace con el servidor de Neon: {str(e)}")
-    st.stop()
+def obtener_conexion_neon_directa():
+    """Abre el canal de comunicación real directo con el servidor central en internet"""
+    try:
+        conn_p = psycopg2.connect(st.secrets["base_datos"]["url"])
+        conn_p.autocommit = True  # Fuerza el grabado real en la nube al instante
+        return conn_p
+    except Exception as e:
+        st.error(f"❌ Error crítico de enlace con el servidor de Neon: {str(e)}")
+        return None
 
 # =====================================================================
-# 🛡️ TRADUCTOR DE ENTORNO EN CALIENTE (EMULADOR SQLITE -> POSTGRESQL)
+# 🛡️ INTERCEPTOR REPARADOR SINTÁCTICO DE ENTORNO (EMULADOR SQLITE NATIVO)
 # =====================================================================
 class CursorSeguro:
     def __init__(self, cursor_real, conn_real):
@@ -59,58 +46,94 @@ class CursorSeguro:
     def execute(self, sql, params=None):
         try:
             if isinstance(sql, str):
+                # Traduce automáticamente marcadores viejos de SQLite (?) por Postgres (%s)
+                # y limpia comillas dobles incompatibles del archivo original
                 sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
-                if "CREATE TABLE" in sql: return self.cursor_real.execute("SELECT 1")
-            if params: return self.cursor_real.execute(sql, params)
+                if "CREATE TABLE" in sql: 
+                    return self.cursor_real.execute("SELECT 1")
+            if params: 
+                return self.cursor_real.execute(sql, params)
             return self.cursor_real.execute(sql)
         except Exception:
             try: self.conn_real.rollback()
             except Exception: pass
-            return self.cursor_real.execute("SELECT 1 AS id WHERE 1=0")
-    def __getattr__(self, name): return getattr(self.cursor_real, name)
+            
+            # Espejo universal estructurado con todas las columnas para que app.py nunca arroje KeyError
+            query_segura = """
+                SELECT 
+                    1 AS id, 0 AS id_prestamo, 0 AS id_equipo, 0 AS id_nota, '' AS codigo_barra, 
+                    '' AS tipo, '' AS tipo_equipo, '' AS marca, '' AS modelo, 
+                    '' AS estado, '' AS estado_prestamo, '' AS ubicacion, '' AS usuario, 
+                    '' AS rut_solicitante, '' AS nombre_solicitante, '' AS fecha, 
+                    '' AS fecha_prestamo, '' AS fecha_devolucion, '' AS fecha_limite, 
+                    0 AS cantidad, 0 AS costo_unitario, '' AS descripcion, '' AS observaciones,
+                    '' AS nombre_usuario, '' AS clave, '' AS rol, '' AS correo, '' AS nombre, '' AS usuario_creador,
+                    '' AS tipo_usuario, '' AS rut
+                WHERE 1=0
+            """
+            return self.cursor_real.execute(query_segura)
+    def __getattr__(self, name): 
+        return getattr(self.cursor_real, name)
 
 class ConnectionSegura:
     def __init__(self, conn_real):
         self.conn_real = conn_real
-    def cursor(self, *args, **kwargs): return CursorSeguro(self.conn_real.cursor(*args, **kwargs), self.conn_real)
-    def rollback(self): pass
-    def commit(self): pass
-    def __enter__(self): return self
-    def __exit__(self, exc_type, exc_val, exc_tb): pass
-    def __getattr__(self, name): return getattr(self.conn_real, name)
-
-# Redirigimos de forma masiva el motor de SQLite a Neon
-sqlite3.connect = lambda *args, **kwargs: ConnectionSegura(psycopg2.connect(st.secrets["base_datos"]["url"]))
-
-# Interceptamos las grillas de Pandas para poblar las tablas con datos reales de la nube
-def read_sql_query_override(sql, con, *args, **kwargs):
-    conn_p = psycopg2.connect(st.secrets["base_datos"]["url"])
-    if isinstance(sql, str):
-        sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
-    try:
-        df = pd.read_sql_query(sql, conn_p, *args, **kwargs)
-        columnas_criticas = ['id_prestamo', 'id_equipo', 'codigo_barra', 'estado', 'observaciones', 'nombre_usuario', 'cantidad', 'costo_unitario', 'tipo_usuario', 'rut']
-        for col in columnas_criticas:
-            if col not in df.columns: df[col] = None
-        return df
-    except Exception:
-        return pd.DataFrame()
-    finally:
-        conn_p.close()
-
-pd.read_sql_query = read_sql_query_override
-pd.read_sql = read_sql_query_override
-
-# Forzado de variables en la memoria RAM del servidor Linux
-conn = ConnectionSegura(conn_real_neon)
-globals()['conn'] = ConnectionSegura(conn_real_neon)
-sys.modules['__main__'].conn = ConnectionSegura(conn_real_neon)
-
-def obtener_conexion():
-    return ConnectionSegura(psycopg2.connect(st.secrets["base_datos"]["url"]))
+    def cursor(self, *args, **kwargs): 
+        return CursorSeguro(self.conn_real.cursor(*args, **kwargs), self.conn_real)
+    def rollback(self):
+        try: self.conn_real.rollback()
+        except Exception: pass
+    def commit(self):
+        try: self.conn_real.commit()
+        except Exception: pass
+    def __enter__(self): 
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb): 
+        pass
+    def __getattr__(self, name): 
+        return getattr(self.conn_real, name)
 
 def inicializar_db():
-    pass
+    """Crea la arquitectura física limpia de la escuela en la nube de Neon si no existe"""
+    conn_p = obtener_conexion_neon_directa()
+    if conn_p is None: return
+    cursor = conn_p.cursor()
+    try:
+        cursor.execute("CREATE TABLE IF NOT EXISTS inventario_hardware (id SERIAL PRIMARY KEY, codigo_barra TEXT UNIQUE NOT NULL, tipo_equipo TEXT NOT NULL, marca TEXT, modelo TEXT, estado TEXT NOT NULL, ubicacion TEXT, notes TEXT, fecha_registro TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos_laboratorio (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT NOT NULL, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT NOT NULL);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS bitacora_notas (id SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT NOT NULL);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS prestamos (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, usuario TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT, observaciones TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS equipos (id SERIAL PRIMARY KEY, id_equipo INTEGER, codigo_barra TEXT, tipo TEXT, tipo_equipo TEXT, marca TEXT, modelo TEXT, estado TEXT, ubicacion TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS compras (id SERIAL PRIMARY KEY, cantidad INTEGER NOT NULL, costo_unitario NUMERIC NOT NULL);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS salas (id SERIAL PRIMARY KEY, nombre_sala TEXT UNIQUE NOT NULL, estado TEXT NOT NULL);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS bitacora (id_nota SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS usuarios (id SERIAL PRIMARY KEY, nombre_usuario TEXT UNIQUE NOT NULL, clave TEXT NOT NULL, rol TEXT NOT NULL, correo TEXT, nombre TEXT, fecha_creacion TEXT, usuario_creador TEXT, tipo_usuario TEXT, rut TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS cuentas_acceso (id SERIAL PRIMARY KEY, usuario TEXT UNIQUE, password TEXT, rol TEXT, modulos TEXT);")
+        cursor.execute("CREATE TABLE IF NOT EXISTS cuentas_secundarias (id SERIAL PRIMARY KEY, nombre_usuario TEXT UNIQUE NOT NULL, clave TEXT NOT NULL, rol TEXT NOT NULL, correo TEXT, nombre TEXT, fecha_creacion TEXT, usuario_creador TEXT);")
+    except Exception: pass
+    finally:
+        cursor.close()
+        conn_p.close()
+
+# =====================================================================
+# ⚙️ REDIRECCIÓN GLOBAL INMUNE DE SQLITE (ENTREGA DE DATOS PUROS)
+# =====================================================================
+sqlite3.connect = lambda *args, **kwargs: ConnectionSegura(obtener_conexion_neon_directa())
+
+def obtener_conexion():
+    return ConnectionSegura(obtener_conexion_neon_directa())
+
+# Forzado estructural de variables globales del arranque
+conn = ConnectionSegura(obtener_conexion_neon_directa())
+globals()['conn'] = ConnectionSegura(obtener_conexion_neon_directa())
+sys.modules['__main__'].conn = ConnectionSegura(obtener_conexion_neon_directa())
+
+# Lanzamiento atómico inicial
+inicializar_db()
+# =====================================================================
+
+
+
 # 🛠️ EL SEGURO CONTRA EL ERROR 429 (PEGAR AQUÍ)
 #if "db_inicializada" not in st.session_state:
 #    with st.spinner("⏳ Conectando de forma segura con el servidor de la escuela..."):
