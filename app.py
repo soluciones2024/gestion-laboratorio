@@ -44,35 +44,19 @@ if 'conn' in locals() or 'conn' in globals():
     conn.commit = commit_con_respaldo_automatico
 # =====================================================================
 
-# =====================================================================
-# INTERRUPTOR ADAPTATIVO: MÁXIMA VELOCIDAD LOCAL + SEGURIDAD EN INTERNET
-# =====================================================================
-# =====================================================================
-# 🛠️ NUEVO MOTOR DE BASE DE DATOS EN LA NUBE (SUPABASE POSTGRES)
-# =====================================================================
+#from st_supabase_connection import SupabaseConnection
 
-# =====================================================================
-# 🛠️ NUEVO MOTOR DE BASE DE DATOS EN LA NUBE (SUPABASE POSTGRES)
-# =====================================================================
-# IMPORTACIÓN OFICIAL CORRECTA:
-
-# =====================================================================
-# =====================================================================
-# 🛠️ NUEVO MOTOR DE BASE DE DATOS EN LA NUBE (CONEXIÓN BLINDADA)
-# =====================================================================
-from st_supabase_connection import SupabaseConnection
-
-try:
+#try:
     # Pasamos las credenciales directamente por código para saltar bloqueos del PC
-    conn = st.connection(
-        "supabase",
-        type=SupabaseConnection,
-        url="https://supabase.co",
-        key="sb_publishable_5yYVTwCAX7LO8_aVhjjgbA_v1sZ3YG5",
-        ttl=0
-    )
-except Exception as e:
-    st.error(f"❌ Error crítico de enlace con el servidor de la nube: {str(e)}")
+ #   conn = st.connection(
+  #      "supabase",
+   #     type=SupabaseConnection,
+    #    url="https://supabase.co",
+     #   key="sb_publishable_5yYVTwCAX7LO8_aVhjjgbA_v1sZ3YG5",
+      #  ttl=0
+   # )
+#except Exception as e:
+ #   st.error(f"❌ Error crítico de enlace con el servidor de la nube: {str(e)}")
 # =====================================================================
 
 # =====================================================================
