@@ -62,17 +62,17 @@ if 'conn' in locals() or 'conn' in globals():
 # =====================================================================
 # from st_supabase_connection import SupabaseConnection
 
-try:
-    # Pasamos las credenciales directamente por código para saltar bloqueos del PC
-    conn = st.connection(
-        "supabase",
-        type=SupabaseConnection,
-        url="https://supabase.co",
-        key="sb_publishable_5yYVTwCAX7LO8_aVhjjgbA_v1sZ3YG5",
-        ttl=0
-    )
-except Exception as e:
-    st.error(f"❌ Error crítico de enlace con el servidor de la nube: {str(e)}")
+#try:
+#    # Pasamos las credenciales directamente por código para saltar bloqueos del PC
+#    conn = st.connection(
+#        "supabase",
+#        type=SupabaseConnection,
+#        url="https://supabase.co",
+#        key="sb_publishable_5yYVTwCAX7LO8_aVhjjgbA_v1sZ3YG5",
+#        ttl=0
+#    )
+#except Exception as e:
+#    st.error(f"❌ Error crítico de enlace con el servidor de la nube: {str(e)}")
 # =====================================================================
 
 # =====================================================================
