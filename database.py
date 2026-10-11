@@ -11,13 +11,17 @@ DB_PATH = "laboratorio.db"
 _sqlite3_connect_original = sqlite3.connect
 
 # =====================================================================
-# ☁️ SINCRONIZADOR BINARIO PURO DE INTERNET (GITHUB API)
+# ☁️ SINCRONIZADOR BINARIO INTELIGENTE (GITHUB API)
 # =====================================================================
 def descargar_base_datos():
     """Descarga tu base de datos real con todos tus datos históricos desde GitHub"""
     try:
         url = "https://githubusercontent.com"
         response = requests.get(url, timeout=12)
+        if response.status_code != 200: # Intento alternativo si la rama es main
+            url = "https://githubusercontent.com"
+            response = requests.get(url, timeout=12)
+            
         if response.status_code == 200:
             with open(DB_PATH, "wb") as f:
                 f.write(response.content)
@@ -27,33 +31,38 @@ def descargar_base_datos():
     return False
 
 def respaldar_base_datos():
-    """Fuerza la subida binaria de tu archivo .db sobreescribiendo internet de forma atómica"""
+    """Sube tu archivo .db sobreescribiendo internet detectando la rama correcta"""
     if not os.path.exists(DB_PATH):
         return False
     try:
-        token = st.secrets["github"]["token"]
-        url = "https://github.com"
-        headers = {
-            "Authorization": f"token {token}",
-            "Accept": "application/vnd.github.v3+json"
-        }
+        token = st.secrets["github"]["token"].strip()
         
-        # 🛡️ ROMPE-BLOQUEOS: Obligamos a la API a darnos el identificador real más fresco
+        # 🚀 Probamos master primero
+        branch_actual = "master"
+        url = f"https://github.com{branch_actual}"
+        headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
+        
         res_get = requests.get(url, headers=headers, timeout=5)
+        if res_get.status_code != 200:
+            # 🚀 Si falla master, cambiamos de inmediato a la rama main
+            branch_actual = "main"
+            url = f"https://github.com{branch_actual}"
+            res_get = requests.get(url, headers=headers, timeout=5)
+            
         sha = res_get.json().get("sha") if res_get.status_code == 200 else None
         
         with open(DB_PATH, "rb") as f:
             content = base64.b64encode(f.read()).decode("utf-8")
             
-        # Generamos una firma única usando el tiempo actual para forzar la actualización de caché en GitHub
+        url_put = f"https://github.com"
         data = {
-            "message": f"☁️ Respaldo Forzado Escuela - {int(time.time())}",
+            "message": f"☁️ Sincronización Escuela - {int(time.time())}",
             "content": content,
-            "branch": "master"
+            "branch": branch_actual
         }
         if sha: data["sha"] = sha
             
-        res_put = requests.put(url, headers=headers, json=data, timeout=15)
+        res_put = requests.put(url_put, headers=headers, json=data, timeout=15)
         return res_put.status_code in [200, 201]
     except Exception:
         return False
@@ -69,11 +78,10 @@ def obtener_conexion():
 def inicializar_db():
     descargar_base_datos()
     
-    # 🚀 DIBUJAMOS EL BOTÓN DORADO DE SEGURIDAD EN TU MENÚ LATERAL (SIDEBAR)
-    # Esto te permitirá guardar físicamente en GitHub con un solo clic cada vez que crees algo
+    # INTERFAZ UNIFICADA SIN BOTONES DUPLICADOS
     st.sidebar.write("---")
     st.sidebar.markdown("### ☁️ Nube de Respaldo")
-    if st.sidebar.button("💾 GUARDAR CAMBIOS EN INTERNET", use_container_width=True, type="primary"):
+    if st.sidebar.button("💾 GUARDAR CAMBIOS EN INTERNET", use_container_width=True, type="primary", key="btn_respaldo_unico"):
         with st.sidebar.spinner("Guardando en la nube de forma permanente..."):
             if respaldar_base_datos():
                 st.sidebar.success("✅ ¡Guardado permanente exitoso!")
@@ -100,8 +108,5 @@ def restaurar_db_desde_bytes(datos_bytes):
         return True
     except Exception: return False
 
-# Redirección atómica en el motor de Python
 sqlite3.connect = lambda *args, **kwargs: _sqlite3_connect_original(DB_PATH, check_same_thread=False)
-
-# Ejecución automática al arranque
 inicializar_db()
