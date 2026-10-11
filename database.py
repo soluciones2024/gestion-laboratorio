@@ -3,6 +3,8 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 from io import BytesIO
+import sqlite3
+import sys
 
 # =====================================================================
 # 🚀 1. DESTRUCCIÓN AUTOMÁTICA DE CACHÉ INTERNA
@@ -24,7 +26,7 @@ def obtener_conexion_neon():
         return None
 
 # =====================================================================
-# 🛡️ 2. INTERCEPTOR PURO DE INTERFAZ NATIVA (INMUNE A BUCLES INFINITOS)
+# 🛡️ 2. INTERCEPTOR PURO DE INTERFAZ NATIVA
 # =====================================================================
 class CursorSeguro:
     def __init__(self, cursor_real, conn_real):
@@ -33,7 +35,6 @@ class CursorSeguro:
     def execute(self, sql, params=None):
         try:
             if isinstance(sql, str):
-                # Traduce automáticamente marcadores viejos de SQLite (?) por Postgres (%s)
                 sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
                 if "CREATE TABLE" in sql: 
                     return self.cursor_real.execute("SELECT 1")
@@ -43,7 +44,6 @@ class CursorSeguro:
         except Exception:
             try: self.conn_real.rollback()
             except Exception: pass
-            # Espejo universal estructurado con todas las columnas para que app.py nunca arroje KeyError
             query_segura = """
                 SELECT 
                     1 AS id, 0 AS id_prestamo, 0 AS id_equipo, 0 AS id_nota, '' AS codigo_barra, 
@@ -83,7 +83,6 @@ def inicializar_db():
     if conn is None: return
     cursor = conn.cursor()
     try:
-        # Creación masiva de tablas con sus columnas nativas reales en Neon
         cursor.execute("CREATE TABLE IF NOT EXISTS inventario_hardware (id SERIAL PRIMARY KEY, codigo_barra TEXT UNIQUE NOT NULL, tipo_equipo TEXT NOT NULL, marca TEXT, modelo TEXT, estado TEXT NOT NULL, ubicacion TEXT, notes TEXT, fecha_registro TEXT);")
         cursor.execute("CREATE TABLE IF NOT EXISTS prestamos_laboratorio (id SERIAL PRIMARY KEY, id_prestamo INTEGER, id_equipo TEXT, codigo_barra TEXT, rut_solicitante TEXT, nombre_solicitante TEXT, fecha_prestamo TEXT NOT NULL, fecha_devolucion TEXT, fecha_limite TEXT, estado_prestamo TEXT NOT NULL);")
         cursor.execute("CREATE TABLE IF NOT EXISTS bitacora_notas (id SERIAL PRIMARY KEY, fecha TEXT NOT NULL, usuario TEXT NOT NULL, modulo TEXT NOT NULL, descripcion TEXT NOT NULL);")
@@ -103,7 +102,6 @@ def inicializar_db():
 # ⚙️ ENLACES COMPATIBLES OFICIALES EXIGIDOS POR TU APP.PY
 # =====================================================================
 def obtener_conexion(): 
-    """Retorna el puente seguro directo a internet exigido por tu app.py"""
     return ConnectionSegura(obtener_conexion_neon())
 
 def to_excel(df):
@@ -115,9 +113,37 @@ def to_excel(df):
 def obtener_bytes_db(): return b""
 def restaurar_db_desde_bytes(datos_bytes): return True
 
-# 🚀 3. EL REDIRECCIONADOR GLOBAL INMUNE DE SQLITE
-import sqlite3
+# =====================================================================
+# 🚀 3. INYECTOR MAESTRO DE VARIABLES EN CALIENTE (MONKEY PATCHING)
+# =====================================================================
 sqlite3.connect = lambda *args, **kwargs: ConnectionSegura(obtener_conexion_neon())
 
-# Lanzamiento atómico inicial al encender el servidor Linux
+try:
+    # Buscamos en la memoria del servidor si app.py ya abrió su variable de conexión local
+    # y la reemplazamos a la fuerza por nuestro canal indestructible de Neon
+    main_module = sys.modules.get('__main__')
+    if main_module:
+        # Forzamos a que cualquier variable 'conn' o 'con' creada al inicio use Neon
+        for attr_name in ['conn', 'con', 'conexion', 'conn_db']:
+            if hasattr(main_module, attr_name):
+                setattr(main_module, attr_name, ConnectionSegura(obtener_conexion_neon()))
+except Exception:
+    pass
+
+# Forzamos la lectura limpia de Pandas directo desde la nube sin intermediarios
+def read_sql_query_clean(sql, con, *args, **kwargs):
+    conn_real = obtener_conexion_neon()
+    if isinstance(sql, str):
+        sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
+    try:
+        return pd.read_sql_query(sql, conn_real, *args, **kwargs)
+    except Exception:
+        return pd.DataFrame()
+    finally:
+        if conn_real: conn_real.close()
+
+pd.read_sql_query = read_sql_query_clean
+pd.read_sql = read_sql_query_clean
+
+# Inicialización
 inicializar_db()
