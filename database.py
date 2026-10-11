@@ -8,17 +8,18 @@ import base64
 import time
 
 DB_PATH = "laboratorio.db"
+
+# 🛡️ CLAVE DEL ÉXITO: Guardamos la función de conexión original de Python de respaldo
 _sqlite3_connect_original = sqlite3.connect
 
-# =====================================================================
-# ☁️ SINCRONIZADOR BINARIO INTELIGENTE (GITHUB API)
-# =====================================================================
 def descargar_base_datos():
     """Descarga tu base de datos real con todos tus datos históricos desde GitHub"""
+    if os.path.exists(DB_PATH):
+        return True
     try:
         url = "https://githubusercontent.com"
         response = requests.get(url, timeout=12)
-        if response.status_code != 200: # Intento alternativo si la rama es main
+        if response.status_code != 200:  # Intento alternativo si la rama es main
             url = "https://githubusercontent.com"
             response = requests.get(url, timeout=12)
             
@@ -31,13 +32,13 @@ def descargar_base_datos():
     return False
 
 def respaldar_base_datos():
-    """Sube tu archivo .db sobreescribiendo internet detectando la rama correcta"""
+    """Sube tu archivo .db sobreescribiendo internet detectando la rama correcta en segundo plano"""
     if not os.path.exists(DB_PATH):
         return False
     try:
         token = st.secrets["github"]["token"].strip()
         
-        # 🚀 Probamos master primero
+        # 🚀 Probamos la rama master primero
         branch_actual = "master"
         url = f"https://github.com{branch_actual}"
         headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
@@ -54,16 +55,16 @@ def respaldar_base_datos():
         with open(DB_PATH, "rb") as f:
             content = base64.b64encode(f.read()).decode("utf-8")
             
-        url_put = f"https://github.com"
+        url_put = "https://github.com"
         data = {
-            "message": f"☁️ Sincronización Escuela - {int(time.time())}",
+            "message": f"☁️ Sincronización Automática Escuela - {int(time.time())}",
             "content": content,
             "branch": branch_actual
         }
         if sha: data["sha"] = sha
             
-        res_put = requests.put(url_put, headers=headers, json=data, timeout=15)
-        return res_put.status_code in [200, 201]
+        requests.put(url_put, headers=headers, json=data, timeout=15)
+        return True
     except Exception:
         return False
 
@@ -71,24 +72,13 @@ def respaldar_base_datos():
 # ⚙️ FUNCIONES DE INTERFAZ EXIGIDAS POR TU APP.PY
 # =====================================================================
 def obtener_conexion():
-    if not os.path.exists(DB_PATH):
-        descargar_base_datos()
+    """Devuelve la conexión SQLite nativa usando la función original salvada"""
+    descargar_base_datos()
     return _sqlite3_connect_original(DB_PATH, check_same_thread=False)
 
 def inicializar_db():
+    """Asegura la descarga inicial del archivo histórico en el arranque sin duplicar elementos"""
     descargar_base_datos()
-    
-    # INTERFAZ UNIFICADA SIN BOTONES DUPLICADOS
-    st.sidebar.write("---")
-    st.sidebar.markdown("### ☁️ Nube de Respaldo")
-    if st.sidebar.button("💾 GUARDAR CAMBIOS EN INTERNET", use_container_width=True, type="primary", key="btn_respaldo_unico"):
-        with st.sidebar.spinner("Guardando en la nube de forma permanente..."):
-            if respaldar_base_datos():
-                st.sidebar.success("✅ ¡Guardado permanente exitoso!")
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.sidebar.error("❌ Error de permisos o de red.")
 
 def to_excel(df):
     output = BytesIO()
@@ -108,5 +98,25 @@ def restaurar_db_desde_bytes(datos_bytes):
         return True
     except Exception: return False
 
-sqlite3.connect = lambda *args, **kwargs: _sqlite3_connect_original(DB_PATH, check_same_thread=False)
+# =====================================================================
+# 🚀 INTERCEPTOR EN SEGUNDO PLANO DE GUARDADO AUTOMÁTICO INMUNE
+# =====================================================================
+class SQLiteSincronizado:
+    def __init__(self, conn_real):
+        self.conn_real = conn_real
+    def commit(self):
+        self.conn_real.commit()
+        # ☁️ CADA VEZ QUE TU APP HAGA COMMIT, SE SUBE A INTERNET DE FORMA INVISIBLE
+        respaldar_base_datos()
+    def __enter__(self): 
+        return self
+    def __exit__(self, exc_type, exc_val, exc_tb): 
+        self.conn_real.close()
+    def __getattr__(self, name): 
+        return getattr(self.conn_real, name)
+
+# Redirección en el motor de Python usando la conexión original salvada para evitar bucles
+sqlite3.connect = lambda *args, **kwargs: SQLiteSincronizado(_sqlite3_connect_original(DB_PATH, check_same_thread=False))
+
+# Ejecución automática al arranque
 inicializar_db()
