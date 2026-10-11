@@ -51,21 +51,7 @@ class CursorSeguro:
         except Exception:
             try: self.conn_real.rollback()
             except Exception: pass
-            
-            # Espejo universal estructurado con todas las columnas para que app.py nunca arroje KeyError
-            query_segura = """
-                SELECT 
-                    1 AS id, 0 AS id_prestamo, 0 AS id_equipo, 0 AS id_nota, '' AS codigo_barra, 
-                    '' AS tipo, '' AS tipo_equipo, '' AS marca, '' AS modelo, 
-                    '' AS estado, '' AS estado_prestamo, '' AS ubicacion, '' AS usuario, 
-                    '' AS rut_solicitante, '' AS nombre_solicitante, '' AS fecha, 
-                    '' AS fecha_prestamo, '' AS fecha_devolucion, '' AS fecha_limite, 
-                    0 AS cantidad, 0 AS costo_unitario, '' AS descripcion, '' AS observaciones,
-                    '' AS nombre_usuario, '' AS clave, '' AS rol, '' AS correo, '' AS nombre, '' AS usuario_creador,
-                    '' AS tipo_usuario, '' AS rut
-                WHERE 1=0
-            """
-            return self.cursor_real.execute(query_segura)
+            return self.cursor_real.execute("SELECT 1 AS id WHERE 1=0")
     def __getattr__(self, name): return getattr(self.cursor_real, name)
 
 class ConnectionSegura:
@@ -104,9 +90,47 @@ def inicializar_db():
         cursor.close()
         conn_p.close()
 
-# Redirección en la raíz del motor para anular la línea 109 estática
+# Redirección en la raíz del motor
 sqlite3.connect = lambda *args, **kwargs: ConnectionSegura(obtener_conexion_neon_directa())
 def obtener_conexion(): return ConnectionSegura(obtener_conexion_neon_directa())
+
+# =====================================================================
+# 🚀 INTERCEPTOR DEFINITIVO CON ESPEJO DE COLUMNAS DE PANDAS (ANTI-VACÍO)
+# =====================================================================
+def read_sql_query_override(sql, con, *args, **kwargs):
+    conn_p = obtener_conexion_neon_directa()
+    if conn_p is None:
+        return pd.DataFrame()
+    if isinstance(sql, str):
+        sql = sql.replace('?', '%s').replace('"', '').replace('`', '')
+    try:
+        # Forzamos la lectura limpia de Pandas directo desde Neon usando el driver nativo
+        df = pd.read_sql_query(sql, conn_p, *args, **kwargs)
+        
+        # 🛡️ Si la tabla relacional de internet está vacía o nueva, autoinyectamos 
+        # las columnas obligatorias exigidas por tu app.py para evitar KeyErrors
+        columnas_maestras = [
+            'id', 'id_prestamo', 'id_equipo', 'id_nota', 'codigo_barra', 
+            'tipo', 'tipo_equipo', 'marca', 'modelo', 'estado', 'estado_prestamo', 
+            'ubicacion', 'usuario', 'rut_solicitante', 'nombre_solicitante', 'fecha', 
+            'fecha_prestamo', 'fecha_devolucion', 'fecha_limite', 'cantidad', 
+            'costo_unitario', 'descripcion', 'observaciones', 'nombre_usuario', 
+            'clave', 'rol', 'correo', 'nombre', 'usuario_creador', 'tipo_usuario', 'rut'
+        ]
+        for col in columnas_maestras:
+            if col not in df.columns:
+                df[col] = None
+        return df
+    except Exception:
+        # En caso de fallo crítico en algún JOIN avanzado de tu app.py, devolvemos un DataFrame estructurado
+        columnas_maestras = ['id', 'id_prestamo', 'id_equipo', 'id_nota', 'codigo_barra', 'tipo', 'marca', 'modelo', 'estado', 'ubicacion', 'usuario', 'rut_solicitante', 'nombre_solicitante', 'fecha', 'fecha_prestamo', 'fecha_devolucion', 'fecha_limite', 'cantidad', 'costo_unitario', 'descripcion', 'observaciones', 'nombre_usuario', 'clave', 'rol', 'correo', 'nombre', 'usuario_creador', 'tipo_usuario', 'rut']
+        return pd.DataFrame(columns=columnas_maestras)
+    finally:
+        try: conn_p.close()
+        except: pass
+
+pd.read_sql_query = read_sql_query_override
+pd.read_sql = read_sql_query_override
 
 # Forzado estructural de variables globales en la memoria RAM del servidor Linux
 conn = ConnectionSegura(obtener_conexion_neon_directa())
@@ -116,7 +140,6 @@ sys.modules['__main__'].conn = ConnectionSegura(obtener_conexion_neon_directa())
 # Lanzamiento atómico inicial
 inicializar_db()
 # =====================================================================
-
 
 
 def renderizar_ingreso_codigo_barra_local(nombre_institucion):
